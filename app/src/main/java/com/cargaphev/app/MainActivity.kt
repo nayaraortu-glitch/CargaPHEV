@@ -1,232 +1,63 @@
 package com.cargaphev.app
 
-import android.Manifest
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.*
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
-import android.net.Uri
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.chip.Chip
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import kotlin.math.roundToInt
-
-data class ConectorInfo(
-    val numero: Int,
-    val tipo: String,          // Ej: TYPE2F, CCS2
-    val potenciaKw: String,    // Ej: 8 kW - Semi rápida
-    val esGratuito: Boolean,   // true = Gratuito, false = De Pago
-    val estado: String         // "DISPONIBLE", "OCUPADO", "FUERA_DE_SERVICIO"
-)
-
-data class CargadorPoint(
-    val id: String,
-    val title: String,
-    val direccion: String,
-    val lat: Double,
-    val lon: Double,
-    val esGratuito: Boolean,
-    val colorHex: Int,
-    val conectores: List<ConectorInfo>
-)
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var map: MapView
-    private var myLocationOverlay: MyLocationNewOverlay? = null
-    private lateinit var bottomSheetBehavior: BottomSheetBehavior<View>
-
-    // Filtros
-    private var filtroSoloGratuitos = false
-    private var filtroSoloTipo2 = false
-
-    private val todosLosCargadores = mutableListOf<CargadorPoint>()
-
-    private val LOCATION_PERMISSION_REQUEST_CODE = 1001
-
-    private val COLOR_VERDE = Color.parseColor("#2E7D32")   // Libre / Operativo
-    private val COLOR_AMBAR = Color.parseColor("#F57C00")   // Parcialmente libre
-    private val COLOR_ROJO = Color.parseColor("#D32F2F")    // Fuera de servicio
-    private val COLOR_GRIS = Color.parseColor("#757575")    // Desconocido
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Configuration.getInstance().load(applicationContext, getSharedPreferences("osm_prefs", MODE_PRIVATE))
+
+        // Configuración requerida por OpenStreetMap antes de inflar la vista
+        Configuration.getInstance().userAgentValue = packageName
 
         setContentView(R.layout.activity_main)
 
+        // Configuración del Mapa
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
 
-        val bottomSheetView = findViewById<View>(R.id.bottomSheet)
-        bottomSheetBehavior = BottomSheetBehavior.from(bottomSheetView)
-        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        // Centrar por defecto en España (Madrid)
+        val mapController = map.controller
+        mapController.setZoom(6.0)
+        val startPoint = GeoPoint(40.416775, -3.703790)
+        mapController.setCenter(startPoint)
 
-        val defaultPoint = GeoPoint(41.545, 2.108) // Sabadell / Vallès
-        map.controller.setZoom(14.0)
-        map.controller.setCenter(defaultPoint)
-
-        val btnCenterLocation = findViewById<FloatingActionButton>(R.id.btnCenterLocation)
-        btnCenterLocation.setOnClickListener {
-            val myLoc = myLocationOverlay?.myLocation
-            if (myLoc != null) {
-                map.controller.animateTo(myLoc)
-                map.controller.setZoom(16.0)
-                cargarPuntosDeCarga(myLoc.latitude, myLoc.longitude)
-            } else {
-                Toast.makeText(this, "Obteniendo ubicación GPS...", Toast.LENGTH_SHORT).show()
-            }
+        // Configurar BottomSheet
+        val bottomSheet: View? = findViewById(R.id.bottomSheet)
+        if (bottomSheet != null) {
+            val behavior = BottomSheetBehavior.from(bottomSheet)
+            behavior.state = BottomSheetBehavior.STATE_HIDDEN
         }
 
-        // Configuración de Chips de Filtro
-        val chipGratuitos = findViewById<Chip>(R.id.chipGratuitos)
-        chipGratuitos.setOnCheckedChangeListener { _, isChecked ->
-            filtroSoloGratuitos = isChecked
-            aplicarFiltrosYRenderizar()
-        }
-
-        val chipTipo2 = findViewById<Chip>(R.id.chipTipo2)
-        chipTipo2.setOnCheckedChangeListener { _, isChecked ->
-            filtroSoloTipo2 = isChecked
-            aplicarFiltrosYRenderizar()
-        }
-
-        solicitarPermisosUbicacion()
-        cargarPuntosDeCarga(defaultPoint.latitude, defaultPoint.longitude)
-    }
-
-    private fun solicitarPermisosUbicacion() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                LOCATION_PERMISSION_REQUEST_CODE
-            )
-        } else {
-            activarUbicacion()
+        // Configurar botón de centrar ubicación
+        val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
+        btnLocation?.setOnClickListener {
+            mapController.animateTo(startPoint)
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            activarUbicacion()
-        }
+    override fun onResume() {
+        super.onResume()
+        map.onResume()
     }
 
-    private fun activarUbicacion() {
-        val arrowBitmap = crearIconoFlechaNavegacion(this)
-        myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map).apply {
-            enableMyLocation()
-            enableFollowLocation()
-            setPersonIcon(arrowBitmap)
-            setDirectionIcon(arrowBitmap)
-            setPersonAnchor(0.5f, 0.5f)
-            setDirectionAnchor(0.5f, 0.5f)
-            runOnFirstFix {
-                val loc = myLocation
-                if (loc != null) {
-                    runOnUiThread {
-                        map.controller.animateTo(loc)
-                        cargarPuntosDeCarga(loc.latitude, loc.longitude)
-                    }
-                }
-            }
-        }
-        map.overlays.add(myLocationOverlay)
+    override fun onPause() {
+        super.onPause()
+        map.onPause()
     }
-
-    private fun cargarPuntosDeCarga(lat: Double, lon: Double) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val lista = mutableListOf<CargadorPoint>()
-
-            // 1. OpenChargeMap API (Cargadores de Catalunya, Etecnic, Estabanell, EVCharge)
-            try {
-                val ocmUrl = "https://api.openchargemap.io/v3/poi/?output=json&latitude=$lat&longitude=$lon&distance=35&maxresults=250&key=1393eb51-fb18-49ee-8951-e945e2270d65"
-                val conn = URL(ocmUrl).openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.setRequestProperty("User-Agent", "CargaPHEV/1.0")
-                conn.connectTimeout = 10000
-
-                if (conn.responseCode == 200) {
-                    val jsonArray = JSONArray(conn.inputStream.bufferedReader().readText())
-                    for (i in 0 until jsonArray.length()) {
-                        val item = jsonArray.getJSONObject(i)
-                        val addressInfo = item.optJSONObject("AddressInfo") ?: continue
-                        var title = addressInfo.optString("Title", "Punto de Carga")
-                        val addressLine = addressInfo.optString("AddressLine1", "")
-                        val town = addressInfo.optString("Town", "")
-                        val fullAddress = if (addressLine.isNotEmpty()) "$addressLine, $town" else title
-
-                        val itemLat = addressInfo.optDouble("Latitude", 0.0)
-                        val itemLon = addressInfo.optDouble("Longitude", 0.0)
-
-                        val operatorInfo = item.optJSONObject("OperatorInfo")
-                        val operatorName = operatorInfo?.optString("Title") ?: ""
-                        if (operatorName.isNotEmpty() && !title.contains(operatorName, true) && operatorName != "(Unknown Operator)") {
-                            title = "$operatorName - $title"
-                        }
-
-                        val usageType = item.optJSONObject("UsageType")
-                        val isFree = usageType?.optBoolean("IsPayAtLocation", false) == false || usageType?.optBoolean("IsFreeMembership", false) == true
-
-                        val connections = item.optJSONArray("Connections")
-                        val conectoresList = mutableListOf<ConectorInfo>()
-                        var tomasOperativas = 0
-                        var totalTomas = 0
-
-                        if (connections != null && connections.length() > 0) {
-                            for (c in 0 until connections.length()) {
-                                val connObj = connections.getJSONObject(c)
-                                val qty = connObj.optInt("Quantity", 1).coerceAtLeast(1)
-                                val connType = connObj.optJSONObject("ConnectionType")?.optString("Title", "Tipo 2") ?: "TYPE2"
-                                val power = connObj.optDouble("PowerKW", 0.0)
-                                val powerStr = if (power > 0) "${power.toInt()} kW" else "Semi rápida"
-
-                                val connStatus = connObj.optJSONObject("StatusType")
-                                val connStatusId = connStatus?.optInt("ID", 50) ?: 50
-                                val estadoConector = when (connStatusId) {
-                                    50 -> "DISPONIBLE"
-                                    100, 75 -> "OCUPADO"
-                                    else -> "FUERA_DE_SERVICIO"
-                                }
-
-                                for (q in 1..qty) {
-                                    totalTomas++
-                                    if (estadoConector == "DISPONIBLE") tomasOperativas++
+}
+oConector == "DISPONIBLE") tomasOperativas++
                                     conectoresList.add(
                                         ConectorInfo(
                                             numero = totalTomas,
