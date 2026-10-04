@@ -136,6 +136,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            activarUbicacion()
+        }
+    }
+
     private fun activarUbicacion() {
         val arrowBitmap = crearIconoFlechaNavegacion(this)
         myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map).apply {
@@ -220,7 +231,7 @@ class MainActivity : AppCompatActivity() {
                                         ConectorInfo(
                                             numero = totalTomas,
                                             tipo = if (connType.contains("Type 2", true)) "TYPE2F" else connType,
-                                            potenciaKw = "$powerStr",
+                                            potenciaKw = powerStr,
                                             esGratuito = isFree,
                                             estado = estadoConector
                                         )
@@ -243,7 +254,7 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
 
-            // 2. Base de Datos Abierta OSM / Overpass (Garantiza cobertura de Estabanell y EVCharge)
+            // 2. Base de Datos Abierta OSM / Overpass (Garantiza cobertura local)
             try {
                 val query = "[out:json];(node[\"amenity\"=\"charging_station\"](around:25000,$lat,$lon);way[\"amenity\"=\"charging_station\"](around:25000,$lat,$lon););out center;"
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=${URLEncoder.encode(query, "UTF-8")}"
@@ -322,7 +333,6 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-    // Muestra la ficha al hacer clic en el marcador (idéntica a la imagen 2)
     private fun mostrarFichaDesplegable(cargador: CargadorPoint) {
         val tvDireccion = findViewById<TextView>(R.id.tvDireccion)
         val tvNombreEstacion = findViewById<TextView>(R.id.tvNombreEstacion)
@@ -332,7 +342,6 @@ class MainActivity : AppCompatActivity() {
         tvDireccion.text = cargador.direccion
         tvNombreEstacion.text = cargador.title
 
-        // Cálculo de distancia en km desde la ubicación actual
         val myLoc = myLocationOverlay?.myLocation
         if (myLoc != null) {
             val distKm = (myLoc.distanceToAsDouble(GeoPoint(cargador.lat, cargador.lon)) / 1000.0).roundToInt()
@@ -348,7 +357,6 @@ class MainActivity : AppCompatActivity() {
             startActivity(mapIntent)
         }
 
-        // Renderizar la lista de tomas/conectores
         containerConectores.removeAllViews()
         for (conector in cargador.conectores) {
             val view = LayoutInflater.from(this).inflate(android.R.layout.simple_list_item_2, containerConectores, false)
@@ -426,178 +434,6 @@ class MainActivity : AppCompatActivity() {
         arrowPath.lineTo(sizePx / 2f, sizePx - 11f * density)
         arrowPath.lineTo(6f * density, sizePx - 6f * density)
         arrowPath.close()
-        canvas.drawPath(arrowPath, paint)
-
-        return bitmap
-    }
-
-    override fun onResume() {
-        super.onResume()
-        map.onResume()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        map.onPause()
-    }
-}
-gaPHEV/1.0")
-                conn.connectTimeout = 12000
-                conn.readTimeout = 12000
-
-                if (conn.responseCode == 200) {
-                    val json = JSONObject(conn.inputStream.bufferedReader().readText())
-                    val elements = json.optJSONArray("elements")
-                    if (elements != null) {
-                        for (i in 0 until elements.length()) {
-                            val elem = elements.getJSONObject(i)
-                            
-                            val eLat = if (elem.has("center")) elem.getJSONObject("center").optDouble("lat") else elem.optDouble("lat")
-                            val eLon = if (elem.has("center")) elem.getJSONObject("center").optDouble("lon") else elem.optDouble("lon")
-                            
-                            if (eLat == 0.0 || eLon == 0.0) continue
-
-                            val tags = elem.optJSONObject("tags")
-                            val operator = tags?.optString("operator") ?: tags?.optString("network") ?: tags?.optString("brand") ?: ""
-                            val name = tags?.optString("name") ?: tags?.optString("ref") ?: "Punto de Carga"
-
-                            val title = when {
-                                operator.isNotEmpty() && !name.contains(operator, true) -> "$operator - $name"
-                                else -> name
-                            }
-
-                            val capacity = tags?.optString("capacity") ?: ""
-                            val socketType2 = tags?.optString("socket:type2")
-                            val socketCCS = tags?.optString("socket:type2_combo") ?: tags?.optString("socket:ccs")
-
-                            var infoSocket = "Tipo 2 / PHEV"
-                            if (socketType2 != null) infoSocket = "Tipo 2 ($socketType2)"
-                            if (socketCCS != null) infoSocket += " | CCS ($socketCCS)"
-
-                            val opStatus = tags?.optString("operational_status") ?: ""
-                            val (color, estadoText) = when {
-                                opStatus == "broken" || opStatus == "out_of_order" -> Pair(COLOR_ROJO, "🔴 Fuera de servicio")
-                                capacity.isNotEmpty() -> Pair(COLOR_VERDE, "🟢 Operativo ($capacity tomas)")
-                                else -> Pair(COLOR_GRIS, "⚪ Sin verificación en tiempo real")
-                            }
-
-                            val snippet = "$estadoText\n$infoSocket"
-                            listaCargadores.add(CargadorPoint(title, snippet, eLat, eLon, color, "OSM"))
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-
-            // Actualizar interfaz con los nuevos marcadores
-            withContext(Dispatchers.Main) {
-                val markersToRemove = map.overlays.filterIsInstance<Marker>()
-                map.overlays.removeAll(markersToRemove)
-
-                val puntosAgregados = mutableListOf<GeoPoint>()
-                for (cargador in listaCargadores) {
-                    val geo = GeoPoint(cargador.lat, cargador.lon)
-                    if (puntosAgregados.none { it.distanceToAsDouble(geo) < 35.0 }) {
-                        puntosAgregados.add(geo)
-
-                        val marker = Marker(map)
-                        marker.position = geo
-                        marker.title = cargador.title
-                        marker.snippet = cargador.snippet
-                        marker.icon = crearIconoEnchufeEV(this@MainActivity, cargador.colorHex)
-                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-
-                        map.overlays.add(marker)
-                    }
-                }
-                map.invalidate()
-            }
-        }
-    }
-
-    // Dibuja el marcador de enchufe EV
-    private fun crearIconoEnchufeEV(context: Context, colorInt: Int): Drawable {
-        val density = context.resources.displayMetrics.density
-        val sizePx = (36 * density).toInt()
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Sombra
-        paint.color = Color.parseColor("#40000000")
-        canvas.drawCircle(sizePx / 2f, sizePx / 2f + 2f, sizePx / 2f - 2f, paint)
-
-        // Círculo base con el color de disponibilidad
-        paint.color = colorInt
-        canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f - 3f, paint)
-
-        // Borde interior blanco
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f * density
-        canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f - 4f, paint)
-
-        // Dibujo del enchufe EV en blanco
-        paint.style = Paint.Style.FILL
-        paint.color = Color.WHITE
-
-        val cx = sizePx / 2f
-        val cy = sizePx / 2f
-
-        val rectPlug = RectF(cx - 5f * density, cy - 3f * density, cx + 5f * density, cy + 6f * density)
-        canvas.drawRoundRect(rectPlug, 2f * density, 2f * density, paint)
-
-        // Clavijas de conexión
-        canvas.drawRect(cx - 3.5f * density, cy - 7.5f * density, cx - 1.5f * density, cy - 3f * density, paint)
-        canvas.drawRect(cx + 1.5f * density, cy - 7.5f * density, cx + 3.5f * density, cy + -3f * density, paint)
-
-        // Cable inferior
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f * density
-        paint.color = Color.WHITE
-        val pathCable = Path()
-        pathCable.moveTo(cx, cy + 6f * density)
-        pathCable.cubicTo(cx, cy + 10f * density, cx + 5f * density, cy + 10f * density, cx + 5f * density, cy + 13f * density)
-        canvas.drawPath(pathCable, paint)
-
-        return BitmapDrawable(context.resources, bitmap)
-    }
-
-    // Dibuja la flecha azul de navegación para la ubicación GPS
-    private fun crearIconoFlechaNavegacion(context: Context): Bitmap {
-        val density = context.resources.displayMetrics.density
-        val sizePx = (38 * density).toInt()
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Sombra de la flecha
-        paint.color = Color.parseColor("#40000000")
-        val shadowPath = Path()
-        shadowPath.moveTo(sizePx / 2f, 4f * density + 2f)
-        shadowPath.lineTo(sizePx - 6f * density, sizePx - 6f * density + 2f)
-        shadowPath.lineTo(sizePx / 2f, sizePx - 11f * density + 2f)
-        shadowPath.lineTo(6f * density, sizePx - 6f * density + 2f)
-        shadowPath.close()
-        canvas.drawPath(shadowPath, paint)
-
-        // Flecha azul de navegación
-        paint.color = Color.parseColor("#1976D2")
-        val arrowPath = Path()
-        arrowPath.moveTo(sizePx / 2f, 4f * density)
-        arrowPath.lineTo(sizePx - 6f * density, sizePx - 6f * density)
-        arrowPath.lineTo(sizePx / 2f, sizePx - 11f * density)
-        arrowPath.lineTo(6f * density, sizePx - 6f * density)
-        arrowPath.close()
-        canvas.drawPath(arrowPath, paint)
-
-        // Contorno blanco
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2.5f * density
         canvas.drawPath(arrowPath, paint)
 
         return bitmap
