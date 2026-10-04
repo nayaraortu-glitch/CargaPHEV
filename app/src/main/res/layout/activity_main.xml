@@ -5,63 +5,62 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Mapa OpenStreetMap -->
-    <org.osmdroid.views.MapView
-        android:id="@+id/map"
+    <!-- Vista principal del mapa -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
 
-    <!-- Barra Superior de Filtros -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:gravity="center_vertical"
-        android:layout_gravity="top">
+        <org.osmdroid.views.MapView
+            android:id="@+id/map"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipGratuitos"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
+        <!-- Chips de Filtro superior -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🏷️ Solo Gratuitos"
-            android:textColor="#1B5E20"
-            app:chipBackgroundColor="#E8F5E9"
-            android:layout_marginEnd="8dp"/>
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipTipo2"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipGratuitos"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="Gratuitos" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTipo2"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tipo 2" />
+        </LinearLayout>
+
+        <!-- Botón flotante para centrar la ubicación -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnCenterLocation"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🔌 Solo Tipo 2 (PHEV)"
-            android:textColor="#0D47A1"
-            app:chipBackgroundColor="#E3F2FD"/>
-    </LinearLayout>
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:layout_margin="16dp"
+            android:contentDescription="Ubicación"
+            app:srcCompat="@android:drawable/ic_menu_mylocation" />
 
-    <!-- Botón Flotante para centrar la ubicación -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btnCenterLocation"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginBottom="90dp"
-        android:layout_marginEnd="16dp"
-        android:contentDescription="Mi ubicación"
-        android:src="@android:drawable/ic_menu_mylocation"
-        app:backgroundTint="#FFFFFF"
-        app:tint="#1976D2" />
+    </RelativeLayout>
 
-    <!-- Ficha Desplegable (BottomSheet) para la Electrolinera -->
+    <!-- Ficha desplegable inferior (BottomSheet) -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/bottomSheet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_bottom_sheet"
-        android:elevation="16dp"
-        android:padding="20dp"
-        app:behavior_hideable="true"
+        android:background="@android:color/white"
+        android:elevation="8dp"
+        android:padding="16dp"
         app:behavior_peekHeight="0dp"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
@@ -70,93 +69,38 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Indicador superior de arrastre -->
-            <View
-                android:layout_width="40dp"
-                android:layout_height="4dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginBottom="16dp"
-                android:background="#CCCCCC"/>
-
-            <!-- Cabecera: Dirección y Distancia -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvDireccion"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Avinguda de Canovelles, 97"
-                        android:textColor="#212121"
-                        android:textSize="15sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:id="@+id/tvNombreEstacion"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Canovelles - SELBA EdRSR 1"
-                        android:textColor="#616161"
-                        android:textSize="14sp"/>
-                </LinearLayout>
-
-                <Button
-                    android:id="@+id/btnNavegar"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="➔ 17 km"
-                    android:textAllCaps="false"
-                    android:textColor="#1976D2"
-                    app:strokeColor="#1976D2"/>
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="16dp"
-                android:background="#E0E0E0"/>
-
-            <!-- Lista de Conectores/Tomas -->
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/tvNombreEstacion"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Tomas y Conectores"
-                android:textColor="#212121"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="12dp"/>
+                android:textColor="@android:color/black"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDireccion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@android:color/darker_gray"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnNavegar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Navegar" />
 
             <LinearLayout
                 android:id="@+id/containerConectores"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:layout_marginTop="12dp"
+                android:orientation="vertical" />
 
-            <!-- Botón de Acción Principal -->
-            <Button
-                android:id="@+id/btnCargar"
-                android:layout_width="match_parent"
-                android:layout_height="54dp"
-                android:layout_marginTop="20dp"
-                android:backgroundTint="#3F51B5"
-                android:text="⚡ Iniciar Carga / Abrir App Operador"
-                android:textAllCaps="false"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                app:cornerRadius="27dp"/>
         </LinearLayout>
+
     </androidx.core.widget.NestedScrollView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
