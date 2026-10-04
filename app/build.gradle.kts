@@ -30,6 +30,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     
-    // Librería de mapas OpenStreetMap
+    // Mapa OpenStreetMap
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+
+    // Peticiones de red HTTP y Asincronía
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
