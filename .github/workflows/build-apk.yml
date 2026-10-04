@@ -26,9 +26,12 @@ jobs:
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
 
-      # Inyectamos el Manifiesto oficial con permisos e instrucciones de Android Auto integradas
+      # ESCUDO DEFINITIVO: Linux borra el Manifest corrupto de tu repositorio.
+      # Después, el propio servidor inyecta el código con comillas binarias puras de ordenador.
       - name: Inject Clean Manifest
         run: |
+          rm -f app/src/main/AndroidManifest.xml || true
+          
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://android.com">
@@ -74,4 +77,3 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             **/build/outputs/apk/debug/*.apk
-            
