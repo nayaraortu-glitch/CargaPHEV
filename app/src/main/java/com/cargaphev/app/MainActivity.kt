@@ -23,6 +23,7 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 data class CargadorPoint(
     val title: String,
@@ -48,8 +49,8 @@ class MainActivity : AppCompatActivity() {
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
 
-        // Punto por defecto
-        val defaultPoint = GeoPoint(41.545, 2.108) // Sabadell / Valles
+        // Punto por defecto (Sabadell / Vallès)
+        val defaultPoint = GeoPoint(41.545, 2.108)
         map.controller.setZoom(14.0)
         map.controller.setCenter(defaultPoint)
 
@@ -109,10 +110,11 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val listaCargadores = mutableListOf<CargadorPoint>()
 
-            // 1. Red Overpass API (OpenStreetMap: Estabanell, EVCharge, Endesa, etc.)
+            // 1. Red Overpass API (Estabanell, EVCharge, Endesa, etc.)
             try {
                 val query = "[out:json];node[\"amenity\"=\"charging_station\"](around:15000,$lat,$lon);out;"
-                val overpassUrl = "https://overpass-api.de/api/interpreter?data=${URL.encode(query)}"
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                val overpassUrl = "https://overpass-api.de/api/interpreter?data=$encodedQuery"
                 val conn = URL(overpassUrl).openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("User-Agent", "CargaPHEV/1.0")
@@ -134,7 +136,7 @@ class MainActivity : AppCompatActivity() {
 
                             var info = "Cargador EV / PHEV"
                             val socket2 = tags?.optString("socket:type2")
-                            if (socket2 != null) info += " | Mennekes/Tipo 2 ($socket2)"
+                            if (socket2 != null) info += " | Tipo 2 ($socket2)"
 
                             listaCargadores.add(CargadorPoint(title, info, eLat, eLon))
                         }
@@ -178,7 +180,7 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
 
-            // Mostrar marcadores evitando duplicados cercanos (< 25 metros)
+            // Mostrar marcadores
             withContext(Dispatchers.Main) {
                 val puntosAgregados = mutableListOf<GeoPoint>()
                 for (cargador in listaCargadores) {
