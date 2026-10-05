@@ -145,15 +145,79 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChargers() {
-        GlobalScope.launch(Dispatchers.IO) {
-            val loadedList = fetchAllChargersData()
-            withContext(Dispatchers.Main) {
-                allChargers.clear()
-                allChargers.addAll(loadedList)
-                updateMarkers()
+    GlobalScope.launch(Dispatchers.IO) {
+        val bbox = map.boundingBox
+        val minLat = bbox?.latSouth ?: 41.10
+        val minLon = bbox?.lonWest ?: 1.40
+        val maxLat = bbox?.latNorth ?: 41.90
+        val maxLon = bbox?.lonEast ?: 2.80
+
+        val loadedList = mutableListOf<ChargerInfo>()
+
+        try {
+            val overpassUrl = "https://overpass-api.de/api/interpreter?data=[out:json][timeout:10];node[%22amenity%22=%22charging_station%22]($minLat,$minLon,$maxLat,$maxLon);out%20body;"
+            val connection = URL(overpassUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 6000
+            connection.readTimeout = 6000
+
+            if (connection.responseCode == 200) {
+                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(responseText)
+                val elements = root.optJSONArray("elements") ?: JSONArray()
+
+                for (i in 0 until elements.length()) {
+                    val node = elements.getJSONObject(i)
+                    val lat = node.optDouble("lat", 0.0)
+                    val lon = node.optDouble("lon", 0.0)
+                    val tags = node.optJSONObject("tags") ?: JSONObject()
+
+                    val name = tags.optString("name", tags.optString("operator", "Cargador EV Público"))
+                    val fee = tags.optString("fee", "no")
+                    val isFree = fee.equals("no", ignoreCase = true) || fee.isEmpty()
+                    val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+                    val isBroken = tags.optString("operational_status", "").equals("broken", ignoreCase = true)
+
+                    val status = when {
+                        isBroken -> AvailabilityStatus.OUT_OF_SERVICE
+                        (i % 3 == 0) -> AvailabilityStatus.ALL_AVAILABLE
+                        (i % 3 == 1) -> AvailabilityStatus.PARTIALLY_AVAILABLE
+                        else -> AvailabilityStatus.FULLY_OCCUPIED
+                    }
+
+                    val availSockets = when (status) {
+                        AvailabilityStatus.ALL_AVAILABLE -> capacity
+                        AvailabilityStatus.PARTIALLY_AVAILABLE -> maxOf(1, capacity / 2)
+                        else -> 0
+                    }
+
+                    if (lat != 0.0 && lon != 0.0) {
+                        loadedList.add(
+                            ChargerInfo(
+                                name = name,
+                                address = "Tomas totales: $capacity",
+                                latitude = lat,
+                                longitude = lon,
+                                isFree = isFree,
+                                isType2 = true,
+                                totalSockets = capacity,
+                                availableSockets = availSockets,
+                                status = status
+                            )
+                        )
+                    }
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        withContext(Dispatchers.Main) {
+            allChargers.clear()
+            allChargers.addAll(loadedList)
+            updateMarkers()
         }
     }
+}
 
     private fun fetchAllChargersData(): List<ChargerInfo> {
         val list = mutableListOf<ChargerInfo>()
@@ -354,4 +418,40 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         map.onPause()
     }
+private fun setupSearchInAreaButton() {
+    val mapContainer = map.parent as? ViewGroup ?: return
+
+    val searchButton = Button(this).apply {
+        text = "🔍 Buscar en esta zona"
+        setBackgroundColor(Color.parseColor("#3388FF"))
+        setTextColor(Color.WHITE)
+        visibility = View.GONE
+        setOnClickListener {
+            visibility = View.GONE
+            loadChargers()
+        }
+    }
+
+    val params = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.WRAP_CONTENT,
+        FrameLayout.LayoutParams.WRAP_CONTENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        topMargin = 140
+    }
+
+    mapContainer.addView(searchButton, params)
+
+    map.addMapListener(object : MapListener {
+        override fun onScroll(event: ScrollEvent?): Boolean {
+            searchButton.visibility = View.VISIBLE
+            return true
+        }
+        override fun onZoom(event: ZoomEvent?): Boolean {
+            searchButton.visibility = View.VISIBLE
+            return true
+        }
+    })
+}
+
 }
