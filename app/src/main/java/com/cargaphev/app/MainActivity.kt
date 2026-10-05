@@ -160,42 +160,32 @@ class MainActivity : AppCompatActivity() {
     private suspend fun fetchChargerData() {
         val loadedList = mutableListOf<ChargerInfo>()
 
-        // =========================================================================
-        // BASE FIJA GARANTIZADA: CANOVELLES Y POBLACIONES PERIFÉRICAS
-        // =========================================================================
-        
-        // Canovelles
-        loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Zona CAP / Ctra. de Ribes, Canovelles", 41.6165, 2.2790, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Parking Pabelló Canovelles", "Parking Pabellón Municipal, Canovelles", 41.6120, 2.2820, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6150, 2.2840, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Canovelles Barri Nord", "Carrer de la Riera, Canovelles", 41.6185, 2.2760, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        // 1. Obtenemos el centro actual o los límites visibles del mapa para buscar ahí de forma automática
+        val centerLat = mMap?.cameraPosition?.target?.latitude ?: 41.6150 // Por defecto Canovelles / Vallès
+        val centerLon = mMap?.cameraPosition?.target?.longitude ?: 2.2840
 
-        // Granollers (Periferia / Enlaces directos con Canovelles)
-        loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert (Zona Jutjats), Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Municipal - Camp de les Moreres", "Carrer del Camp de les Moreres, Granollers", 41.6072, 2.2921, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Hospital General de Granollers", "Carrer de Francesc Ribas, Granollers", 41.6020, 2.2900, true, true, 8, 6, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
+        // Creamos una caja de búsqueda de aprox. 5-10 km alrededor de donde está mirando el usuario en el mapa
+        val delta = 0.05 // Equivalente a unos 5-6 km a la redonda
+        val minLat = centerLat - delta
+        val maxLat = centerLat + delta
+        val minLon = centerLon - delta
+        val maxLon = centerLon + delta
 
-        // Poblaciones Periféricas (Les Franqueses, Lliçà d'Amunt, Cardedeu)
-        loadedList.add(ChargerInfo("Ajuntament de les Franqueses", "Zona Esportiva Municipal, Corró d'Avall", 41.6320, 2.2950, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Recàrrega Lliçà d'Amunt", "Passeig de Catalunya, Lliçà d'Amunt", 41.6180, 2.2350, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Cardedeu Estació", "Plaça de les Olors, Cardedeu", 41.6385, 2.3650, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+        val sMinLat = String.format(Locale.US, "%.4f", minLat)
+        val sMinLon = String.format(Locale.US, "%.4f", minLon)
+        val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
+        val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
 
-        // =========================================================================
-        // CONSULTA DINÁMICA DE RESPALDO (Zona Canovelles y Comarca Norte)
-        // =========================================================================
         try {
-            val minLat = 41.58
-            val maxLat = 41.66
-            val minLon = 2.20
-            val maxLon = 2.38
-
+            // Petición dinámica a Overpass adaptada a la zona exacta donde está el mapa
             val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                    "[out:json][timeout:8];node[\"amenity\"=\"charging_station\"]($minLat,$minLon,$maxLat,$maxLon);out%20body;"
+                    "[out:json][timeout:10];" +
+                    "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+                    "out%20body;"
 
             val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = 4000
-            connection.readTimeout = 4000
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
             connection.setRequestProperty("User-Agent", "Mozilla/5.0")
 
             if (connection.responseCode == 200) {
@@ -209,7 +199,7 @@ class MainActivity : AppCompatActivity() {
                     val lon = node.optDouble("lon", 0.0)
                     val tags = node.optJSONObject("tags") ?: JSONObject()
 
-                    val name = tags.optString("name", tags.optString("operator", "Cargador Zona Nord"))
+                    val name = tags.optString("name", tags.optString("operator", "Punto de Recarga EV"))
                     val operator = tags.optString("operator", "").lowercase()
                     val fee = tags.optString("fee", "").lowercase()
                     
@@ -217,36 +207,44 @@ class MainActivity : AppCompatActivity() {
                                  operator.contains("ajuntament") || 
                                  operator.contains("estabanell") || 
                                  operator.contains("municipal") ||
-                                 fee.isEmpty()
+                                 operator.contains("endesa") == false && fee.isEmpty()
 
                     val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
                     val status = AvailabilityStatus.ALL_AVAILABLE
                     val price = if (isFree) "Gratis" else "0,38 €/kWh"
 
                     if (lat != 0.0 && lon != 0.0) {
-                        val exists = loadedList.any { kotlin.math.abs(it.latitude - lat) < 0.0005 && kotlin.math.abs(it.longitude - lon) < 0.0005 }
-                        if (!exists) {
-                            loadedList.add(
-                                ChargerInfo(
-                                    name = name,
-                                    address = if (operator.isNotEmpty()) "Op: $operator" else "Punto de recarga",
-                                    latitude = lat,
-                                    longitude = lon,
-                                    isFree = isFree,
-                                    isType2 = true,
-                                    totalSockets = capacity,
-                                    availableSockets = capacity,
-                                    status = status,
-                                    powerKw = "22 kW",
-                                    pricePerKwh = price
-                                )
+                        loadedList.add(
+                            ChargerInfo(
+                                name = name,
+                                address = if (operator.isNotEmpty()) "Operador: $operator" else "Punto público",
+                                latitude = lat,
+                                longitude = lon,
+                                isFree = isFree,
+                                isType2 = true,
+                                totalSockets = capacity,
+                                availableSockets = capacity,
+                                status = status,
+                                powerKw = "22 kW",
+                                pricePerKwh = price
                             )
-                        }
+                        )
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+
+        // 2. Si la consulta dinámica no devuelve nada o falla por red, metemos una base local de emergencia según la zona
+        if (loadedList.isEmpty()) {
+            // Canovelles base de respaldo
+            loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Zona CAP / Ctra. de Ribes, Canovelles", 41.6165, 2.2790, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("EVcharge - Parking Pabelló", "Parking Pabellón Municipal, Canovelles", 41.6120, 2.2820, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6150, 2.2840, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
+            // Granollers base de respaldo
+            loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
         }
 
         withContext(Dispatchers.Main) {
