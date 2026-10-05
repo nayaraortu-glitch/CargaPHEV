@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
         var availableSockets: Int,
         var status: AvailabilityStatus,
         val powerKw: String = "22 kW",
-        val pricePerKwh: String = "Gratis"
+        val pricePerKwh: String = "Consulta en destino"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,31 +80,33 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(14.0)
 
-        val sabadellCenter = GeoPoint(41.5463, 2.1086)
-        mapController.setCenter(sabadellCenter)
+        // Centro inicial por defecto: Sabadell
+        val defaultCenter = GeoPoint(41.5463, 2.1086)
+        mapController.setCenter(defaultCenter)
 
         checkLocationPermissions()
 
         // Botón de centrado en ubicación
         val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
         btnLocation?.setOnClickListener {
-            val center = myLocationMarker?.position ?: sabadellCenter
+            val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
             mapController.animateTo(center)
             mapController.setZoom(15.0)
             Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
         }
 
-        // --- BOTÓN FLOTANTE DE ACTUALIZACIÓN ---
-        // Si tienes un botón en tu XML con id 'btnRefresh', lo enlazamos. Si no, usamos un doble toque en el mapa o creamos un aviso.
+        // --- BOTÓN DE ACTUALIZACIÓN INTELIGENTE ---
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
-                loadRealChargers()
+                val currentCenter = map.mapCenter as? GeoPoint ?: defaultCenter
+                loadChargersFromOpenChargeMap(currentCenter.latitude, currentCenter.longitude)
             }
         } else {
-            // Como alternativa accesible si no está en el XML, al hacer toque largo en el botón de ubicación se actualiza
+            // Si no hay botón físico de refresco, un toque largo en el botón de ubicación actualiza la zona
             btnLocation?.setOnLongClickListener {
-                loadRealChargers()
+                val currentCenter = map.mapCenter as? GeoPoint ?: defaultCenter
+                loadChargersFromOpenChargeMap(currentCenter.latitude, currentCenter.longitude)
                 true
             }
         }
@@ -120,8 +122,8 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        // Carga inicial automática al abrir
-        loadRealChargers()
+        // Carga inicial basada en la posición predeterminada
+        loadChargersFromOpenChargeMap(defaultCenter.latitude, defaultCenter.longitude)
     }
 
     private fun checkLocationPermissions() {
@@ -172,101 +174,97 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-    private fun loadRealChargers() {
-        Toast.makeText(this, "Buscando cargadores reales en la zona...", Toast.LENGTH_SHORT).show()
+    // --- CARGA DINÁMICA SEGURA MEDIANTE OPEN CHARGE MAP ---
+    private fun loadChargersFromOpenChargeMap(lat: Double, lon: Double) {
+        Toast.makeText(this, "Buscando cargadores cercanos...", Toast.LENGTH_SHORT).show()
 
         GlobalScope.launch(Dispatchers.IO) {
             val liveList = mutableListOf<ChargerInfo>()
             try {
-                // Rectángulo optimizado para el Vallès y área metropolitana (rápido y con resultados seguros)
-                val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:15];" +
-                        "node[\"amenity\"=\"charging_station\"](41.35,1.90,41.80,2.50);" +
-                        "out%20body;"
+                // Consultamos un radio de 30 km alrededor de la posición actual (máximo 80 resultados para cero sobrecarga)
+                val urlString = "https://api.openchargemap.io/v3/poi/?output=json&countrycode=ES&maxresults=80&latitude=$lat&longitude=$lon&distance=30&distanceunit=KM&compact=true"
 
-                val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                val connection = URL(urlString).openConnection() as HttpURLConnection
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                connection.setRequestProperty("User-Agent", "CargaPHEV-AndroidApp")
 
                 if (connection.responseCode == 200) {
                     val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                    val root = JSONObject(responseText)
-                    val elements = root.optJSONArray("elements") ?: JSONArray()
+                    val jsonArray = JSONArray(responseText)
 
-                    for (i in 0 until elements.length()) {
-                        val node = elements.getJSONObject(i)
-                        val lat = node.optDouble("lat", 0.0)
-                        val lon = node.optDouble("lon", 0.0)
-                        val tags = node.optJSONObject("tags") ?: JSONObject()
+                    for (i in 0 until jsonArray.length()) {
+                        val item = jsonArray.getJSONObject(i)
+                        val addressInfo = item.optJSONObject("AddressInfo") ?: continue
 
-                        val name = tags.optString("name", tags.optString("operator", "Punto de Recarga EV"))
-                        val operator = tags.optString("operator", "").lowercase()
-                        val fee = tags.optString("fee", "").lowercase()
-                        
-                        val isFree = fee == "no" || 
-                                     operator.contains("ajuntament") || 
-                                     operator.contains("estabanell") || 
-                                     operator.contains("municipal") ||
-                                     fee.isEmpty()
+                        val name = addressInfo.optString("Title", "Punto de Recarga")
+                        val address = addressInfo.optString("AddressLine1", "Ubicación en zona")
+                        val latitude = addressInfo.optDouble("Latitude", 0.0)
+                        val longitude = addressInfo.optDouble("Longitude", 0.0)
 
-                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
-                        val price = if (isFree) "Gratis" else "De pago"
+                        // Estado operativo
+                        val statusType = item.optJSONObject("StatusType")
+                        val isOperational = statusType?.optBoolean("IsOperational", true) ?: true
 
-                        if (lat != 0.0 && lon != 0.0) {
+                        // Conectores y potencia
+                        val connections = item.optJSONArray("Connections")
+                        var totalSockets = 2
+                        var isType2 = false
+                        var powerKw = "22 kW"
+
+                        if (connections != null && connections.length() > 0) {
+                            val conn = connections.getJSONObject(0)
+                            totalSockets = conn.optInt("Quantity", 2)
+                            val powerKWVal = conn.optDouble("PowerKW", 22.0)
+                            if (powerKWVal > 0) powerKw = "${powerKWVal.toInt()} kW"
+                            
+                            // Comprobar si es Tipo 2 u otro compatible
+                            val connType = conn.optJSONObject("ConnectionType")?.optString("Title", "").orEmpty()
+                            isType2 = connType.contains("Type 2") || connType.contains("Mennekes") || connType.isEmpty()
+                        } else {
+                            isType2 = true
+                        }
+
+                        val status = if (isOperational) AvailabilityStatus.ALL_AVAILABLE else AvailabilityStatus.OUT_OF_SERVICE
+                        val available = if (isOperational) totalSockets else 0
+
+                        if (latitude != 0.0 && longitude != 0.0) {
                             liveList.add(
                                 ChargerInfo(
                                     name = name,
-                                    address = if (operator.isNotEmpty()) "Operador: $operator" else "Punto público",
-                                    latitude = lat,
-                                    longitude = lon,
-                                    isFree = isFree,
-                                    isType2 = true,
-                                    totalSockets = capacity,
-                                    availableSockets = capacity,
-                                    status = AvailabilityStatus.ALL_AVAILABLE,
-                                    powerKw = "22 kW",
-                                    pricePerKwh = price
+                                    address = address,
+                                    latitude = latitude,
+                                    longitude = longitude,
+                                    isFree = true, // Enfocado a híbridos en búsqueda de puntos accesibles
+                                    isType2 = isType2,
+                                    totalSockets = totalSockets,
+                                    availableSockets = available,
+                                    status = status,
+                                    powerKw = powerKw,
+                                    pricePerKwh = "Red Oficial OCM"
                                 )
                             )
                         }
                     }
                 }
 
-                // Respaldo de seguridad si la red falla en el arranque
-                if (liveList.isEmpty()) {
-                    liveList.add(ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                }
-
                 withContext(Dispatchers.Main) {
-                    allChargers.clear()
-                    allChargers.addAll(liveList)
-                    updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡${liveList.size} puntos cargados correctamente!", Toast.LENGTH_SHORT).show()
+                    if (liveList.isNotEmpty()) {
+                        allChargers.clear()
+                        allChargers.addAll(liveList)
+                        updateMarkers()
+                        Toast.makeText(this@MainActivity, "¡${liveList.size} cargadores cargados en esta zona!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "No hay cargadores registrados en este radio", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    // Cargamos los de respaldo si hay fallo de internet
-                    loadFallbackDirectly()
-                    Toast.makeText(this@MainActivity, "Cargados puntos de respaldo locales", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Error de red al actualizar la zona", Toast.LENGTH_SHORT).show()
                 }
             }
         }
-    }
-
-    private fun loadFallbackDirectly() {
-        val fallback = listOf(
-            ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis")
-        )
-        allChargers.clear()
-        allChargers.addAll(fallback)
-        updateMarkers()
     }
 
     private fun updateMarkers() {
@@ -307,9 +305,9 @@ class MainActivity : AppCompatActivity() {
                 selectedCharger = charger
 
                 val statusText = when (charger.status) {
-                    AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
-                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} libres)"
-                    AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo (0/${charger.totalSockets} libres)"
+                    AvailabilityStatus.ALL_AVAILABLE -> "🟢 Operativo / Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
+                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial"
+                    AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Ocupado"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
                 }
 
@@ -405,8 +403,7 @@ class MainActivity : AppCompatActivity() {
             val wazeUri = Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")
             val wazeIntent = Intent(Intent.ACTION_VIEW, wazeUri)
             startActivity(wazeIntent)
-        } catch (e: Exception) {
-            Toast.LENGTH_SHORT
+        } catch (e:Exception) {
             Toast.makeText(this, "Waze no está instalado en el dispositivo", Toast.LENGTH_SHORT).show()
         }
     }
