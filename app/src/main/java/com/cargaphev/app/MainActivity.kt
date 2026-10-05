@@ -160,48 +160,11 @@ class MainActivity : AppCompatActivity() {
     private suspend fun fetchChargerData() {
         val loadedList = mutableListOf<ChargerInfo>()
 
-        // ==========================================
-        // REDES ESPECÍFICAS: ESTABANELL & EVCHARGE
-        // ==========================================
-        // Estabanell (Granollers)
-        loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-        
-        // EVcharge / eTecnic (Canovelles & Granollers)
-        loadedList.add(ChargerInfo("EVcharge - Parking Pabelló Canovelles", "Parking Pabellón, Canovelles", 41.6120, 2.2820, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6150, 2.2840, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-        
-        // Hospital General de Granollers (Place to Plug / Gratuito)
-        loadedList.add(ChargerInfo("Hospital General de Granollers", "Carrer de Francesc Ribas, Granollers", 41.6020, 2.2900, true, true, 8, 6, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-
-        // ==========================================
-        // RESTO DE PUNTOS COMARCALES (Sabadell, Terrassa, etc.)
-        // ==========================================
-        loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Endesa X Way - Fira Sabadell", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
-        loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
-        loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Tesla Supercharger Sabadell", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
-        
-        // Terrassa
-        loadedList.add(ChargerInfo("Electrolinera Ajuntament Terrassa", "Poblenou / Rambla, Terrassa", 41.5619, 2.0099, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Endesa X Parc Vallès", "Parc Vallès, Terrassa", 41.5720, 2.0210, false, true, 6, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "0,42 €/kWh"))
-
-        // Sant Cugat
-        loadedList.add(ChargerInfo("Punt Càrrega Monestir", "Plaça del Monestir, Sant Cugat", 41.4745, 2.0851, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-
-        // Barberà y Cerdanyola
-        loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà del Vallès", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Electrolinera Cerdanyola Universitat", "Campus UAB, Cerdanyola", 41.4980, 2.1100, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-
-        // Obtener centro actual del mapa dinámicamente
-        val centerLat = if (map.mapCenter.latitude != 0.0) map.mapCenter.latitude else 41.5463
-        val centerLon = if (map.mapCenter.longitude != 0.0) map.mapCenter.longitude else 2.1086
-
-        val minLat = centerLat - 0.6
-        val maxLat = centerLat + 0.6
-        val minLon = centerLon - 0.6
-        val maxLon = centerLon + 0.6
+        // Coordenadas amplias que cubren de forma automática toda la comarca (Sabadell, Granollers, Terrassa, Canovelles...)
+        val minLat = 41.45
+        val maxLat = 41.65
+        val minLon = 1.95
+        val maxLon = 2.35
 
         val sMinLat = String.format(Locale.US, "%.4f", minLat)
         val sMinLon = String.format(Locale.US, "%.4f", minLon)
@@ -210,13 +173,13 @@ class MainActivity : AppCompatActivity() {
 
         try {
             val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                    "[out:json][timeout:10];" +
+                    "[out:json][timeout:15];" +
                     "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
                     "out%20body;"
 
             val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
 
             if (connection.responseCode == 200) {
                 val responseText = connection.inputStream.bufferedReader().use { it.readText() }
@@ -230,8 +193,16 @@ class MainActivity : AppCompatActivity() {
                     val tags = node.optJSONObject("tags") ?: JSONObject()
 
                     val name = tags.optString("name", tags.optString("operator", "Cargador EV Público"))
-                    val fee = tags.optString("fee", "no")
-                    val isFree = fee.equals("no", ignoreCase = true) || fee.isEmpty()
+                    val operator = tags.optString("operator", "").lowercase()
+                    val fee = tags.optString("fee", "").lowercase()
+                    
+                    // Detección automática inteligente de gratuidad
+                    val isFree = fee == "no" || 
+                                     operator.contains("ajuntament") || 
+                                     operator.contains("estabanell") || 
+                                     operator.contains("municipal") ||
+                                     fee.isEmpty()
+
                     val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
 
                     val status = when ((i + System.currentTimeMillis() / 30000).toInt() % 3) {
@@ -252,7 +223,7 @@ class MainActivity : AppCompatActivity() {
                         loadedList.add(
                             ChargerInfo(
                                 name = name,
-                                address = "Red Pública Local",
+                                address = if (operator.isNotEmpty()) "Operador: $operator" else "Punto de recarga público",
                                 latitude = lat,
                                 longitude = lon,
                                 isFree = isFree,
