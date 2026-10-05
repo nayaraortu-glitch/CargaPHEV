@@ -20,8 +20,12 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -46,6 +50,8 @@ class MainActivity : AppCompatActivity() {
     private val allChargers = mutableListOf<ChargerInfo>()
     private val activeMarkers = mutableListOf<Marker>()
     private var selectedCharger: ChargerInfo? = null
+    
+    private var refreshJob: Job? = null
 
     enum class AvailabilityStatus {
         ALL_AVAILABLE,
@@ -79,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         map.setMultiTouchControls(true)
 
         val mapController = map.controller
-        mapController.setZoom(13.5)
+        mapController.setZoom(11.5)
 
         val defaultPoint = GeoPoint(41.5463, 2.1086) // Sabadell por defecto
         mapController.setCenter(defaultPoint)
@@ -136,102 +142,141 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun startPeriodicRefresh() {
+        refreshJob?.cancel()
+        refreshJob = GlobalScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(45000) // Refresca cada 45 segundos en segundo plano
+                loadChargersSilent()
+            }
+        }
+    }
+
     private fun loadChargers() {
         GlobalScope.launch(Dispatchers.IO) {
-            val loadedList = mutableListOf<ChargerInfo>()
+            fetchChargerData()
+        }
+    }
 
-            // 1. Cargadores de muestra estables principales
-            loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
-            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
-            loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,50 €/kWh"))
-            loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
-            loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+    private fun loadChargersSilent() {
+        fetchChargerData()
+    }
 
-            // 2. Obtener centro del mapa con respaldo seguro
-            val centerLat = if (map.mapCenter.latitude != 0.0) map.mapCenter.latitude else 41.5463
-            val centerLon = if (map.mapCenter.longitude != 0.0) map.mapCenter.longitude else 2.1086
+    private fun fetchChargerData() {
+        val loadedList = mutableListOf<ChargerInfo>()
 
-            val minLat = centerLat - 0.5
-            val maxLat = centerLat + 0.5
-            val minLon = centerLon - 0.5
-            val maxLon = centerLon + 0.5
+        // Base amplia comarcal inicial de respaldo
+        loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Endesa X Way - Fira Sabadell", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
+        loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
+        loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,50 €/kWh"))
+        loadedList.add(ChargerInfo("Tesla Supercharger Sabadell", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
+        
+        // Terrassa
+        loadedList.add(ChargerInfo("Electrolinera Ajuntament Terrassa", "Poblenou / Rambla, Terrassa", 41.5619, 2.0099, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Endesa X Parc Vallès", "Parc Vallès, Terrassa", 41.5720, 2.0210, false, true, 6, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "0,42 €/kWh"))
+        loadedList.add(ChargerInfo("Tesla Supercharger Terrassa", "Carretera de Rubí, Terrassa", 41.5530, 2.0150, false, true, 10, 8, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
 
-            val sMinLat = String.format(Locale.US, "%.4f", minLat)
-            val sMinLon = String.format(Locale.US, "%.4f", minLon)
-            val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
-            val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
+        // Sant Cugat del Vallès
+        loadedList.add(ChargerInfo("Punt Càrrega Monestir", "Plaça del Monestir, Sant Cugat", 41.4745, 2.0851, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Iberdrola Estació Sant Cugat", "Av. de Gràcia, Sant Cugat", 41.4690, 2.0830, false, true, 4, 4, AvailabilityStatus.ALL_AVAILABLE, "50 kW", "0,45 €/kWh"))
 
-            try {
-                val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:10];" +
-                        "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
-                        "out%20body;"
+        // Barberà y Cerdanyola
+        loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà del Vallès", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Electrolinera Cerdanyola Universitat", "Campus UAB, Cerdanyola", 41.4980, 2.1100, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
 
-                val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 6000
-                connection.readTimeout = 6000
+        // Mollet y Granollers
+        loadedList.add(ChargerInfo("Punt Ajuntament Mollet", "Plaça Major, Mollet del Vallès", 41.5435, 2.2136, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Endesa X Granollers Centre", "Passeig de la Muntanya, Granollers", 41.6083, 2.2878, false, true, 4, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "0,45 €/kWh"))
 
-                if (connection.responseCode == 200) {
-                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                    val root = JSONObject(responseText)
-                    val elements = root.optJSONArray("elements") ?: JSONArray()
+        // Rubí y Castellar
+        loadedList.add(ChargerInfo("Punt Rubí Mercat", "Carrer de Montserrat, Rubí", 41.4929, 2.0323, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis"))
+        loadedList.add(ChargerInfo("Punt Castellar del Vallès", "Passeig de Tolrà, Castellar", 41.6183, 2.0883, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
 
-                    for (i in 0 until elements.length()) {
-                        val node = elements.getJSONObject(i)
-                        val lat = node.optDouble("lat", 0.0)
-                        val lon = node.optDouble("lon", 0.0)
-                        val tags = node.optJSONObject("tags") ?: JSONObject()
+        // Obtener centro actual del mapa dinámicamente
+        val centerLat = if (map.mapCenter.latitude != 0.0) map.mapCenter.latitude else 41.5463
+        val centerLon = if (map.mapCenter.longitude != 0.0) map.mapCenter.longitude else 2.1086
 
-                        val name = tags.optString("name", tags.optString("operator", "Cargador EV Público"))
-                        val fee = tags.optString("fee", "no")
-                        val isFree = fee.equals("no", ignoreCase = true) || fee.isEmpty()
-                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+        val minLat = centerLat - 0.6
+        val maxLat = centerLat + 0.6
+        val minLon = centerLon - 0.6
+        val maxLon = centerLon + 0.6
 
-                        val status = when {
-                            i % 3 == 0 -> AvailabilityStatus.ALL_AVAILABLE
-                            i % 3 == 1 -> AvailabilityStatus.PARTIALLY_AVAILABLE
-                            else -> AvailabilityStatus.FULLY_OCCUPIED
-                        }
+        val sMinLat = String.format(Locale.US, "%.4f", minLat)
+        val sMinLon = String.format(Locale.US, "%.4f", minLon)
+        val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
+        val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
 
-                        val availSockets = when (status) {
-                            AvailabilityStatus.ALL_AVAILABLE -> capacity
-                            AvailabilityStatus.PARTIALLY_AVAILABLE -> maxOf(1, capacity / 2)
-                            else -> 0
-                        }
+        try {
+            val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
+                    "[out:json][timeout:10];" +
+                    "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+                    "out%20body;"
 
-                        val price = if (isFree) "Gratis" else "0,38 €/kWh"
+            val connection = URL(overpassUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
 
-                        if (lat != 0.0 && lon != 0.0) {
-                            loadedList.add(
-                                ChargerInfo(
-                                    name = name,
-                                    address = "Red Pública Local",
-                                    latitude = lat,
-                                    longitude = lon,
-                                    isFree = isFree,
-                                    isType2 = true,
-                                    totalSockets = capacity,
-                                    availableSockets = availSockets,
-                                    status = status,
-                                    powerKw = "22 kW",
-                                    pricePerKwh = price
-                                )
+            if (connection.responseCode == 200) {
+                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(responseText)
+                val elements = root.optJSONArray("elements") ?: JSONArray()
+
+                for (i in 0 until elements.length()) {
+                    val node = elements.getJSONObject(i)
+                    val lat = node.optDouble("lat", 0.0)
+                    val lon = node.optDouble("lon", 0.0)
+                    val tags = node.optJSONObject("tags") ?: JSONObject()
+
+                    val name = tags.optString("name", tags.optString("operator", "Cargador EV Público"))
+                    val fee = tags.optString("fee", "no")
+                    val isFree = fee.equals("no", ignoreCase = true) || fee.isEmpty()
+                    val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+
+                    // Simulación dinámica de estado para pruebas en tiempo real
+                    val status = when ((i + System.currentTimeMillis() / 30000).toInt() % 3) {
+                        0 -> AvailabilityStatus.ALL_AVAILABLE
+                        1 -> AvailabilityStatus.PARTIALLY_AVAILABLE
+                        else -> AvailabilityStatus.FULLY_OCCUPIED
+                    }
+
+                    val availSockets = when (status) {
+                        AvailabilityStatus.ALL_AVAILABLE -> capacity
+                        AvailabilityStatus.PARTIALLY_AVAILABLE -> maxOf(1, capacity / 2)
+                        else -> 0
+                    }
+
+                    val price = if (isFree) "Gratis" else "0,38 €/kWh"
+
+                    if (lat != 0.0 && lon != 0.0) {
+                        loadedList.add(
+                            ChargerInfo(
+                                name = name,
+                                address = "Red Pública Local",
+                                latitude = lat,
+                                longitude = lon,
+                                isFree = isFree,
+                                isType2 = true,
+                                totalSockets = capacity,
+                                availableSockets = availSockets,
+                                status = status,
+                                powerKw = "22 kW",
+                                pricePerKwh = price
                             )
-                        }
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
-            withContext(Dispatchers.Main) {
-                allChargers.clear()
-                allChargers.addAll(loadedList)
-                updateMarkers()
-            }
+        withContext(Dispatchers.Main) {
+            allChargers.clear()
+            allChargers.addAll(loadedList)
+            updateMarkers()
         }
     }
 
@@ -362,10 +407,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         map.onResume()
+        startPeriodicRefresh() // Inicia el bucle de actualización al abrir la app
     }
 
     override fun onPause() {
         super.onPause()
         map.onPause()
+        refreshJob?.cancel() // Detiene el bucle al salir de la app para ahorrar batería
     }
 }
