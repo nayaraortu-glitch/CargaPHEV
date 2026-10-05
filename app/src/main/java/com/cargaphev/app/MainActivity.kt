@@ -35,13 +35,6 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.net.HttpURLConnection
 import java.net.URL
-import android.view.Gravity
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.FrameLayout
-import org.osmdroid.events.MapListener
-import org.osmdroid.events.ScrollEvent
-import org.osmdroid.events.ZoomEvent
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -72,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         val availableSockets: Int,
         val status: AvailabilityStatus,
         val powerKw: String = "22 kW",
-        val pricePerKwh: String = "0,35 €/kWh" // Precio orientativo para de pago
+        val pricePerKwh: String = "0,35 €/kWh"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(13.5)
 
-        val defaultPoint = GeoPoint(41.5463, 2.1086) // Sabadell
+        val defaultPoint = GeoPoint(41.5463, 2.1086) // Sabadell por defecto
         mapController.setCenter(defaultPoint)
 
         setupLocationOverlay()
@@ -116,8 +109,10 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        setupSearchInAreaButton()
-        loadChargers()
+        // Esperar a que el mapa cargue para obtener la posición y buscar
+        map.post {
+            loadChargers()
+        }
     }
 
     private fun setupLocationOverlay() {
@@ -146,39 +141,23 @@ class MainActivity : AppCompatActivity() {
         GlobalScope.launch(Dispatchers.IO) {
             val loadedList = mutableListOf<ChargerInfo>()
 
-            // Obtener las coordenadas actuales visibles en la pantalla del mapa
-            val bbox = map.boundingBox
-            val minLat = bbox?.latSouth ?: 41.10
-            val minLon = bbox?.lonWest ?: 1.40
-            val maxLat = bbox?.latNorth ?: 41.90
-            val maxLon = bbox?.lonEast ?: 2.80
+            // Obtener el centro actual del mapa o la posición GPS del usuario
+            val centerLat = locationOverlay?.myLocation?.latitude ?: map.mapCenter.latitude
+            val centerLon = locationOverlay?.myLocation?.longitude ?: map.mapCenter.longitude
 
-            // Formatear con punto usando Locale.US para evitar errores en la API
-            val sMinLat = String.format(Locale.US, "%.4f", minLat)
-            val sMinLon = String.format(Locale.US, "%.4f", minLon)
-            val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
-            val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
+            val sLat = String.format(Locale.US, "%.4f", centerLat)
+            val sLon = String.format(Locale.US, "%.4f", centerLon)
 
-            // 1. Cargadores de muestra estables
-            loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 0.0, 0.0, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
-            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
-            loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-            loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,50 €/kWh"))
-            loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
-            loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-
-            // 2. Consulta Overpass dinámica usando la zona visible actual del mapa
+            // Consulta Overpass dinámica basada en un radio de 50 km (50000 metros) alrededor de donde estás
             try {
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:8];" +
-                        "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+                        "[out:json][timeout:15];" +
+                        "node[\"amenity\"=\"charging_station\"](around:50000,$sLat,$sLon);" +
                         "out%20body;"
 
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
 
                 if (connection.responseCode == 200) {
                     val responseText = connection.inputStream.bufferedReader().use { it.readText() }
@@ -214,7 +193,7 @@ class MainActivity : AppCompatActivity() {
                             loadedList.add(
                                 ChargerInfo(
                                     name = name,
-                                    address = "Punto Red Pública",
+                                    address = "Red Pública Local",
                                     latitude = lat,
                                     longitude = lon,
                                     isFree = isFree,
@@ -373,45 +352,5 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         map.onPause()
-    }
-
-    private fun setupSearchInAreaButton() {
-        val mapContainer = map.parent as? ViewGroup ?: return
-
-        val searchButton = Button(this).apply {
-            text = "🔍 Buscar en esta zona"
-            setBackgroundColor(Color.parseColor("#3388FF"))
-            setTextColor(Color.WHITE)
-            visibility = View.VISIBLE
-            setOnClickListener {
-                visibility = View.GONE
-                loadChargers()
-            }
-        }
-
-        val params = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = 220
-        }
-
-        mapContainer.addView(searchButton, params)
-
-        map.post {
-            loadChargers()
-        }
-
-        map.addMapListener(object : MapListener {
-            override fun onScroll(event: ScrollEvent?): Boolean {
-                searchButton.visibility = View.VISIBLE
-                return true
-            }
-            override fun onZoom(event: ZoomEvent?): Boolean {
-                searchButton.visibility = View.VISIBLE
-                return true
-            }
-        })
     }
 }
