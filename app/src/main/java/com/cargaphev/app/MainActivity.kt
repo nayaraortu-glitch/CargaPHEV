@@ -161,7 +161,11 @@ private fun loadChargers() {
         val loadedList = mutableListOf<ChargerInfo>()
 
         try {
-            val overpassUrl = "https://overpass-api.de/api/interpreter?data=[out:json][timeout:10];node[%22amenity%22=%22charging_station%22]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);out%20body;"
+            val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
+            "[out:json][timeout:10];" +
+            "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+            "out%20body;"
+
             val connection = URL(overpassUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = 6000
             connection.readTimeout = 6000
