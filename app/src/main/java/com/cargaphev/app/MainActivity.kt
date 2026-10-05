@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -147,7 +146,7 @@ class MainActivity : AppCompatActivity() {
         refreshJob = GlobalScope.launch(Dispatchers.IO) {
             while (isActive) {
                 delay(45000) // Refresca cada 45 segundos en segundo plano
-                loadChargersSilent()
+                fetchChargerData()
             }
         }
     }
@@ -158,11 +157,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadChargersSilent() {
-        fetchChargerData()
-    }
-
-    private fun fetchChargerData() {
+    private suspend fun fetchChargerData() {
         val loadedList = mutableListOf<ChargerInfo>()
 
         // Base amplia comarcal inicial de respaldo
