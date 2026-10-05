@@ -418,6 +418,7 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         map.onPause()
     }
+
 private fun setupSearchInAreaButton() {
     val mapContainer = map.parent as? ViewGroup ?: return
 
@@ -425,12 +426,39 @@ private fun setupSearchInAreaButton() {
         text = "🔍 Buscar en esta zona"
         setBackgroundColor(Color.parseColor("#3388FF"))
         setTextColor(Color.WHITE)
-        visibility = View.GONE
+        visibility = View.VISIBLE // Visible desde el inicio
         setOnClickListener {
             visibility = View.GONE
             loadChargers()
         }
     }
+
+    val params = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.WRAP_CONTENT,
+        FrameLayout.LayoutParams.WRAP_CONTENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        topMargin = 220 // Bajado para no solapar con los chips
+    }
+
+    mapContainer.addView(searchButton, params)
+
+    // Cargar automáticamente tan pronto como el mapa se termine de renderizar
+    map.post {
+        loadChargers()
+    }
+
+    map.addMapListener(object : MapListener {
+        override fun onScroll(event: ScrollEvent?): Boolean {
+            searchButton.visibility = View.VISIBLE
+            return true
+        }
+        override fun onZoom(event: ZoomEvent?): Boolean {
+            searchButton.visibility = View.VISIBLE
+            return true
+        }
+    })
+}
 
     val params = FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.WRAP_CONTENT,
