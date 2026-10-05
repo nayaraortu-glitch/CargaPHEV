@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        // Esperar a que el mapa cargue para obtener la posición y buscar
+        // Cargar cargadores asegurando que el mapa esté listo
         map.post {
             loadChargers()
         }
@@ -141,23 +141,39 @@ class MainActivity : AppCompatActivity() {
         GlobalScope.launch(Dispatchers.IO) {
             val loadedList = mutableListOf<ChargerInfo>()
 
-            // Obtener el centro actual del mapa o la posición GPS del usuario
-            val centerLat = locationOverlay?.myLocation?.latitude ?: map.mapCenter.latitude
-            val centerLon = locationOverlay?.myLocation?.longitude ?: map.mapCenter.longitude
+            // 1. Cargadores de muestra estables principales
+            loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
+            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
+            loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,50 €/kWh"))
+            loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
+            loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
 
-            val sLat = String.format(Locale.US, "%.4f", centerLat)
-            val sLon = String.format(Locale.US, "%.4f", centerLon)
+            // 2. Obtener centro del mapa con respaldo seguro (Sabadell por defecto si es 0.0)
+            val centerLat = if (map.mapCenter.latitude != 0.0) map.mapCenter.latitude else 41.5463
+            val centerLon = if (map.mapCenter.longitude != 0.0) map.mapCenter.longitude else 2.1086
 
-            // Consulta Overpass dinámica basada en un radio de 50 km (50000 metros) alrededor de donde estás
+            val minLat = centerLat - 0.5
+            val maxLat = centerLat + 0.5
+            val minLon = centerLon - 0.5
+            val maxLon = centerLon + 0.5
+
+            val sMinLat = String.format(Locale.US, "%.4f", minLat)
+            val sMinLon = String.format(Locale.US, "%.4f", minLon)
+            val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
+            val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
+
             try {
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:15];" +
-                        "node[\"amenity\"=\"charging_station\"](around:50000,$sLat,$sLon);" +
+                        "[out:json][timeout:10];" +
+                        "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
                         "out%20body;"
 
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
+                connection.connectTimeout = 6000
+                connection.readTimeout = 6000
 
                 if (connection.responseCode == 200) {
                     val responseText = connection.inputStream.bufferedReader().use { it.readText() }
@@ -259,6 +275,7 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
+                    AvailabilityStatus.PARTIOutputStatus -> "🟡 Ocupación parcial"
                     AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
                     AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo (0/${charger.totalSockets} libres)"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
