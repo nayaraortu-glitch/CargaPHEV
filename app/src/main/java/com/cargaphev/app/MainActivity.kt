@@ -35,6 +35,14 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.net.HttpURLConnection
 import java.net.URL
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.FrameLayout
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
+import org.osmdroid.util.BoundingBox
 
 class MainActivity : AppCompatActivity() {
 
