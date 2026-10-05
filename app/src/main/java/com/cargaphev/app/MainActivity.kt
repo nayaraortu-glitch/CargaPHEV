@@ -42,6 +42,7 @@ import android.widget.FrameLayout
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -70,7 +71,8 @@ class MainActivity : AppCompatActivity() {
         val totalSockets: Int,
         val availableSockets: Int,
         val status: AvailabilityStatus,
-        val powerKw: String = "22 kW"
+        val powerKw: String = "22 kW",
+        val pricePerKwh: String = "0,35 €/kWh" // Precio orientativo para de pago
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,7 +113,7 @@ class MainActivity : AppCompatActivity() {
 
         val btnNavegarId = resources.getIdentifier("btnNavegar", "id", packageName)
         if (btnNavegarId != 0) {
-            findViewById<View>(btnNavegarId)?.setOnClickListener { openGoogleMapsNavigation() }
+            findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
         setupSearchInAreaButton()
@@ -144,19 +146,36 @@ class MainActivity : AppCompatActivity() {
         GlobalScope.launch(Dispatchers.IO) {
             val loadedList = mutableListOf<ChargerInfo>()
 
-            // 1. Cargadores de muestra estables con colores correctos
-            loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW"))
-            loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW"))
-            loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW"))
-            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW"))
-            loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW"))
-            loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW"))
-            loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW"))
-            loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW"))
+            // Obtener las coordenadas actuales visibles en la pantalla del mapa
+            val bbox = map.boundingBox
+            val minLat = bbox?.latSouth ?: 41.10
+            val minLon = bbox?.lonWest ?: 1.40
+            val maxLat = bbox?.latNorth ?: 41.90
+            val maxLon = bbox?.lonEast ?: 2.80
 
-            // 2. Consulta Overpass de OpenStreetMap en segundo plano
+            // Formatear con punto usando Locale.US para evitar errores en la API
+            val sMinLat = String.format(Locale.US, "%.4f", minLat)
+            val sMinLon = String.format(Locale.US, "%.4f", minLon)
+            val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
+            val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
+
+            // 1. Cargadores de muestra estables
+            loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 0.0, 0.0, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,45 €/kWh"))
+            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "0,35 €/kWh"))
+            loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW", "0,50 €/kWh"))
+            loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
+            loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+
+            // 2. Consulta Overpass dinámica usando la zona visible actual del mapa
             try {
-                val overpassUrl = "https://overpass-api.de/api/interpreter?data=[out:json][timeout:8];node[%22amenity%22=%22charging_station%22](41.10,1.40,41.90,2.80);out%20body;"
+                val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
+                        "[out:json][timeout:8];" +
+                        "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+                        "out%20body;"
+
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
@@ -189,6 +208,8 @@ class MainActivity : AppCompatActivity() {
                             else -> 0
                         }
 
+                        val price = if (isFree) "Gratis" else "0,38 €/kWh"
+
                         if (lat != 0.0 && lon != 0.0) {
                             loadedList.add(
                                 ChargerInfo(
@@ -201,7 +222,8 @@ class MainActivity : AppCompatActivity() {
                                     totalSockets = capacity,
                                     availableSockets = availSockets,
                                     status = status,
-                                    powerKw = "22 kW"
+                                    powerKw = "22 kW",
+                                    pricePerKwh = price
                                 )
                             )
                         }
@@ -263,10 +285,10 @@ class MainActivity : AppCompatActivity() {
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
                 }
 
-                val priceText = if (charger.isFree) "Gratuito" else "De pago"
+                val priceInfo = if (charger.isFree) "Gratuito (0 €/kWh)" else "De pago (${charger.pricePerKwh})"
 
                 tvNombre?.text = charger.name
-                tvDireccion?.text = "${charger.address}\n$statusText • $priceText • ${charger.powerKw}"
+                tvDireccion?.text = "${charger.address}\n$statusText • $priceInfo • ${charger.powerKw}"
 
                 if (bottomSheet != null) {
                     val behavior = BottomSheetBehavior.from(bottomSheet)
@@ -302,20 +324,44 @@ class MainActivity : AppCompatActivity() {
         return BitmapDrawable(resources, bitmap)
     }
 
-    private fun openGoogleMapsNavigation() {
+    private fun showNavigationChooser() {
         val charger = selectedCharger
-        if (charger != null) {
-            val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
-            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-            mapIntent.setPackage("com.google.android.apps.maps")
-            if (mapIntent.resolveActivity(packageManager) != null) {
-                startActivity(mapIntent)
-            } else {
-                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}"))
-                startActivity(browserIntent)
-            }
-        } else {
+        if (charger == null) {
             Toast.makeText(this, "Selecciona un cargador en el mapa primero", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val options = arrayOf("Google Maps", "Waze")
+        val builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle("Elegir Navegador")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> openGoogleMapsNavigation(charger)
+                1 -> openWazeNavigation(charger)
+            }
+        }
+        builder.show()
+    }
+
+    private fun openGoogleMapsNavigation(charger: ChargerInfo) {
+        val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+        mapIntent.setPackage("com.google.android.apps.maps")
+        if (mapIntent.resolveActivity(packageManager) != null) {
+            startActivity(mapIntent)
+        } else {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}"))
+            startActivity(browserIntent)
+        }
+    }
+
+    private fun openWazeNavigation(charger: ChargerInfo) {
+        try {
+            val wazeUri = Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")
+            val wazeIntent = Intent(Intent.ACTION_VIEW, wazeUri)
+            startActivity(wazeIntent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Waze no está instalado en el dispositivo", Toast.LENGTH_SHORT).show()
         }
     }
 
