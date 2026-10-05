@@ -118,6 +118,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { openGoogleMapsNavigation() }
         }
 
+        setupSearchInAreaButton()
         loadChargers()
     }
 
