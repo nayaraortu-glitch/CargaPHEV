@@ -173,63 +173,86 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadBaseChargers() {
-        val loadedList = mutableListOf<ChargerInfo>()
-
-        // --- SABADELL (Coordenadas exactas reales) ---
-        loadedList.add(ChargerInfo("Punt Municipal - Passeig de la Plaça Major", "Passeig de la Plaça Major, Sabadell", 41.5432, 2.1102, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, 50, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Parking Parc Catalunya", "Carrer de Budapest, Sabadell", 41.5545, 2.1025, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Creu Alta - Ctra. de Prats", "Ctra. de Prats de Lluçanès, Sabadell", 41.5580, 2.1050, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Estació Sabadell Centre", "Plaça d'Espanya, Sabadell", 41.5370, 2.1040, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Can Rull", "Plaça del Treball, Sabadell", 41.5535, 2.0880, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-
-        // --- CANOVELLES (Coordenadas exactas reales) ---
-        loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes / Zona CAP, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Parking Pabelló Municipal", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6148, 2.2838, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Canovelles - Zona Nord", "Carrer de la Riera, Canovelles", 41.6182, 2.2758, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-
-        // --- GRANOLLERS ---
-        loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Hospital General de Granollers", "Carrer de Francesc Ribas, Granollers", 41.6020, 2.2900, true, true, 8, 6, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-
-        allChargers.clear()
-        allChargers.addAll(loadedList)
-        updateMarkers()
+        // En lugar de puntos manuales desplazados, al arrancar lanzamos la consulta real de toda Cataluña
+        refreshLiveAvailability()
     }
 
     private fun refreshLiveAvailability() {
-        Toast.makeText(this, "Descargando cargadores de toda Cataluña...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Descargando cargadores reales de toda Cataluña...", Toast.LENGTH_LONG).show()
 
         GlobalScope.launch(Dispatchers.IO) {
+            val liveList = mutableListOf<ChargerInfo>()
             try {
-                // Bounding box ampliado para cubrir toda Cataluña (desde Lleida/Pirineos hasta Barcelona, Girona y Tarragona)
+                // Consulta Overpass API optimizada para toda Cataluña con un rectángulo geográfico exacto
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:25];" +
+                        "[out:json][timeout:35];" +
                         "node[\"amenity\"=\"charging_station\"](40.5,0.15,42.9,3.33);" +
                         "out%20body;"
 
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android)")
 
                 if (connection.responseCode == 200) {
                     val responseText = connection.inputStream.bufferedReader().use { it.readText() }
                     val root = JSONObject(responseText)
                     val elements = root.optJSONArray("elements") ?: JSONArray()
 
-                    // Opcional: si quieres procesar y volcar al mapa los puntos reales que devuelve Cataluña:
-                    // (Por ahora mantenemos la lista base o la enriquecemos dinámicamente)
+                    for (i in 0 until elements.length()) {
+                        val node = elements.getJSONObject(i)
+                        val lat = node.optDouble("lat", 0.0)
+                        val lon = node.optDouble("lon", 0.0)
+                        val tags = node.optJSONObject("tags") ?: JSONObject()
+
+                        val name = tags.optString("name", tags.optString("operator", "Punto de Recarga Público"))
+                        val operator = tags.optString("operator", "").lowercase()
+                        val fee = tags.optString("fee", "").lowercase()
+                        
+                        // Detección automática de gratuidad y tipo
+                        val isFree = fee == "no" || 
+                                     operator.contains("ajuntament") || 
+                                     operator.contains("estabanell") || 
+                                     operator.contains("municipal") ||
+                                     fee.isEmpty()
+
+                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+                        val price = if (isFree) "Gratis" else "De pago / Red general"
+
+                        if (lat != 0.0 && lon != 0.0) {
+                            liveList.add(
+                                ChargerInfo(
+                                    name = name,
+                                    address = if (operator.isNotEmpty()) "Operador: $operator" else "Cataluña - Red Pública",
+                                    latitude = lat,
+                                    longitude = lon,
+                                    isFree = isFree,
+                                    isType2 = true,
+                                    totalSockets = capacity,
+                                    availableSockets = capacity,
+                                    status = AvailabilityStatus.ALL_AVAILABLE,
+                                    powerKw = "22 kW",
+                                    pricePerKwh = price
+                                )
+                            )
+                        }
+                    }
                 }
 
                 withContext(Dispatchers.Main) {
-                    updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡Red de Cataluña actualizada!", Toast.LENGTH_SHORT).show()
+                    if (liveList.isNotEmpty()) {
+                        allChargers.clear()
+                        allChargers.addAll(liveList)
+                        updateMarkers()
+                        Toast.makeText(this@MainActivity, "¡${liveList.size} cargadores reales cargados!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "No se encontraron puntos en la red", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Error de red al actualizar Cataluña", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Error de conexión con el mapa de Cataluña", Toast.LENGTH_SHORT).show()
                 }
             }
         }
