@@ -160,9 +160,10 @@ class MainActivity : AppCompatActivity() {
     private suspend fun fetchChargerData() {
         val loadedList = mutableListOf<ChargerInfo>()
 
-        // 1. Obtenemos el centro actual o los límites visibles del mapa para buscar ahí de forma automática
-        val centerLat = mMap?.cameraPosition?.target?.latitude ?: 41.6150 // Por defecto Canovelles / Vallès
-        val centerLon = mMap?.cameraPosition?.target?.longitude ?: 2.2840
+        // 1. Obtenemos el centro actual del mapa de osmdroid de forma segura
+        val mapCenter = map.mapCenter
+        val centerLat = mapCenter?.latitude ?: 41.6150 // Por defecto Canovelles / Vallès
+        val centerLon = mapCenter?.longitude ?: 2.2840
 
         // Creamos una caja de búsqueda de aprox. 5-10 km alrededor de donde está mirando el usuario en el mapa
         val delta = 0.05 // Equivalente a unos 5-6 km a la redonda
@@ -236,13 +237,11 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-        // 2. Si la consulta dinámica no devuelve nada o falla por red, metemos una base local de emergencia según la zona
+        // 2. Si la consulta dinámica no devuelve nada o falla por red, metemos una base local de emergencia
         if (loadedList.isEmpty()) {
-            // Canovelles base de respaldo
             loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Zona CAP / Ctra. de Ribes, Canovelles", 41.6165, 2.2790, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
             loadedList.add(ChargerInfo("EVcharge - Parking Pabelló", "Parking Pabellón Municipal, Canovelles", 41.6120, 2.2820, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
             loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6150, 2.2840, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-            // Granollers base de respaldo
             loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
             loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
         }
