@@ -46,10 +46,11 @@ class MainActivity : AppCompatActivity() {
     private var locationProvider: org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider? = null
 
     enum class AvailabilityStatus {
-        ALL_AVAILABLE,
-        PARTIALLY_AVAILABLE,
-        FULLY_OCCUPIED,
-        OUT_OF_SERVICE
+        ALL_AVAILABLE,      // Verde: Operativo con datos de red
+        PARTIALLY_AVAILABLE,// Amarillo: Ocupación parcial
+        FULLY_OCCUPIED,     // Rojo: Ocupado
+        OUT_OF_SERVICE,     // Gris: Fuera de servicio
+        STATIC_CARCASA      // Azul: Punto físico verificado (sin tiempo real / carcasa vacía)
     }
 
     data class ChargerInfo(
@@ -86,7 +87,6 @@ class MainActivity : AppCompatActivity() {
 
         checkLocationPermissions()
 
-        // Botón de centrado en ubicación
         val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
         btnLocation?.setOnClickListener {
             val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
@@ -95,14 +95,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
         }
 
-        // --- BOTÓN DE ACTUALIZACIÓN ---
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
                 loadCataloniaOfficialChargers()
             }
         } else {
-            // Toque largo en el botón de ubicación para refrescar
             btnLocation?.setOnLongClickListener {
                 loadCataloniaOfficialChargers()
                 true
@@ -120,7 +118,8 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        // Carga inicial automática
+        // Carga base de respaldo y descarga de zona
+        loadFallbackDirectly()
         loadCataloniaOfficialChargers()
     }
 
@@ -172,23 +171,21 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-    // --- CARGA DESDE LA RED PÚBLICA OFICIAL DE CATALUÑA / OSM OPTIMIZADO ---
     private fun loadCataloniaOfficialChargers() {
-        Toast.makeText(this, "Actualizando cargadores de Cataluña...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Actualizando cargadores...", Toast.LENGTH_SHORT).show()
 
         GlobalScope.launch(Dispatchers.IO) {
-            val liveList = mutableListOf<ChargerInfo>()
+            val fetchedList = mutableListOf<ChargerInfo>()
+            var success = false
             try {
-                // Consulta directa rápida y ligera sobre el sector central de Cataluña (Barcelona, Vallès, Maresme, etc.)
-                // Utiliza Overpass API optimizado con formato directo y sin bloqueos por clave
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:20];" +
+                        "[out:json][timeout:25];" +
                         "node[\"amenity\"=\"charging_station\"](41.30,1.80,41.75,2.45);" +
                         "out%20body;"
 
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 12000
-                connection.readTimeout = 12000
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
                 connection.setRequestProperty("User-Agent", "CargaPHEV-AppCatalunya")
 
                 if (connection.responseCode == 200) {
@@ -211,8 +208,20 @@ class MainActivity : AppCompatActivity() {
                                      operator.contains("estabanell") ||
                                      tags.optString("fee", "") == "no"
 
+                        // Determinamos si es un punto con red gestionada o una carcasa estática genérica de OSM
+                        val isManagedNetwork = operator.contains("evcharge") || 
+                                               operator.contains("estabanell") || 
+                                               operator.contains("ajuntament") || 
+                                               operator.contains("endesa")
+
+                        val status = if (isManagedNetwork) {
+                            AvailabilityStatus.ALL_AVAILABLE
+                        } else {
+                            AvailabilityStatus.STATIC_CARCASA // Azul: Carcasa vacía / sin tiempo real
+                        }
+
                         if (lat != 0.0 && lon != 0.0) {
-                            liveList.add(
+                            fetchedList.add(
                                 ChargerInfo(
                                     name = name,
                                     address = "Operador: $operator",
@@ -222,37 +231,40 @@ class MainActivity : AppCompatActivity() {
                                     isType2 = true,
                                     totalSockets = capacity,
                                     availableSockets = capacity,
-                                    status = AvailabilityStatus.ALL_AVAILABLE,
+                                    status = status,
                                     powerKw = "22 kW",
                                     pricePerKwh = if (isFree) "Gratis" else "De pago"
                                 )
                             )
                         }
                     }
-                }
-
-                // Si por cobertura o timeout devuelve pocos, inyectamos los puntos oficiales garantizados de la zona
-                if (liveList.size < 4) {
-                    liveList.add(ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Sabadell Centre", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                    liveList.add(ChargerInfo("Recarga Rambla", "Rambla de Sabadell", 41.5475, 2.1051, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-                }
-
-                withContext(Dispatchers.Main) {
-                    allChargers.clear()
-                    allChargers.addAll(liveList)
-                    updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡${liveList.size} puntos actualizados correctamente!", Toast.LENGTH_SHORT).show()
+                    if (fetchedList.isNotEmpty()) {
+                        success = true
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    // Respaldo inmediato ante cualquier corte de red
+            }
+
+            withContext(Dispatchers.Main) {
+                if (success && fetchedList.size > 5) {
+                    for (newCharger in fetchedList) {
+                        val exists = allChargers.any { 
+                            Math.abs(it.latitude - newCharger.latitude) < 0.0001 && 
+                            Math.abs(it.longitude - newCharger.longitude) < 0.0001 
+                        }
+                        if (!exists) {
+                            allChargers.add(newCharger)
+                        }
+                    }
+                    Toast.makeText(this@MainActivity, "¡Actualizado! Total: ${allChargers.size} puntos", Toast.LENGTH_SHORT).show()
+                } else if (!success && allChargers.size <= 5) {
                     loadFallbackDirectly()
-                    Toast.makeText(this@MainActivity, "Cargados puntos de la red de respaldo", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Usando red de respaldo local", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Red ocupada. Se mantienen los ${allChargers.size} puntos en memoria", Toast.LENGTH_SHORT).show()
                 }
+                updateMarkers()
             }
         }
     }
@@ -263,11 +275,15 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
             ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
             ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Sabadell Centre", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis")
+            ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Sabadell Centre", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Recarga Rambla (Carcasa Estática)", "Rambla de Sabadell", 41.5475, 2.1051, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
         )
-        allChargers.clear()
-        allChargers.addAll(fallback)
-        updateMarkers()
+        
+        for (item in fallback) {
+            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 }) {
+                allChargers.add(item)
+            }
+        }
     }
 
     private fun updateMarkers() {
@@ -295,10 +311,11 @@ class MainActivity : AppCompatActivity() {
             marker.title = charger.name
 
             val markerColor = when (charger.status) {
-                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")
-                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300")
-                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")
-                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#757575")
+                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")       // Verde
+                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300") // Amarillo
+                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")     // Rojo
+                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#757575")     // Gris
+                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")     // Azul (Carcasa estática / sin tiempo real)
             }
 
             marker.icon = createCustomPinIcon(markerColor)
@@ -308,10 +325,11 @@ class MainActivity : AppCompatActivity() {
                 selectedCharger = charger
 
                 val statusText = when (charger.status) {
-                    AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre / Operativo (${charger.availableSockets}/${charger.totalSockets} tomas)"
+                    AvailabilityStatus.ALL_AVAILABLE -> "🟢 Operativo / Red con gestión (${charger.availableSockets}/${charger.totalSockets} tomas)"
                     AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial"
                     AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
+                    AvailabilityStatus.STATIC_CARCASA -> "🔵 Punto Físico / Carcasa Estática (Sin estado en tiempo real - Consulta in situ)"
                 }
 
                 tvNombre?.text = charger.name
@@ -408,6 +426,8 @@ class MainActivity : AppCompatActivity() {
             startActivity(wazeIntent)
         } catch (e: Exception) {
             Toast.makeText(this, "Waze no está instalado en el dispositivo", Toast.LENGTH_SHORT).show()
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes"))
+            startActivity(browserIntent)
         }
     }
 
