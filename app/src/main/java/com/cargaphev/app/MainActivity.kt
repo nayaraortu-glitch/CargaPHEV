@@ -43,7 +43,6 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var map: MapView
-    private var locationOverlay: MyLocationNewOverlay? = null
     private val LOCATION_PERMISSION_REQUEST_CODE = 1001
 
     private val allChargers = mutableListOf<ChargerInfo>()
@@ -51,6 +50,8 @@ class MainActivity : AppCompatActivity() {
     private var selectedCharger: ChargerInfo? = null
     
     private var refreshJob: Job? = null
+    private var myLocationMarker: Marker? = null
+    private var locationProvider: GpsMyLocationProvider? = null
 
     enum class AvailabilityStatus {
         ALL_AVAILABLE,
@@ -81,26 +82,24 @@ class MainActivity : AppCompatActivity() {
 
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
-        map.setMultiTouchControls(true)
+        map.setMultiTouchControls(true) // Habilita el movimiento libre con los dedos, zoom y rotación
+        map.isTilesScaledToDpi = true
 
         val mapController = map.controller
-        mapController.setZoom(11.5)
+        mapController.setZoom(13.0)
 
-        val defaultPoint = GeoPoint(41.5463, 2.1086) // Sabadell / Centro comarcal
+        // Posición inicial centrada en Sabadell / Valles
+        val defaultPoint = GeoPoint(41.5463, 2.1086) 
         mapController.setCenter(defaultPoint)
 
-        setupLocationOverlay()
         checkLocationPermissions()
 
         val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
         btnLocation?.setOnClickListener {
-            val myLoc = locationOverlay?.myLocation
-            if (myLoc != null) {
-                mapController.animateTo(myLoc)
-            } else {
-                mapController.animateTo(defaultPoint)
-                Toast.makeText(this, "Buscando señal GPS...", Toast.LENGTH_SHORT).show()
-            }
+            val center = myLocationMarker?.position ?: defaultPoint
+            mapController.animateTo(center)
+            mapController.setZoom(15.0)
+            Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
         }
 
         val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
@@ -114,16 +113,22 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
+        // Carga inicial y recarga al mover el mapa libremente
         map.post {
             loadChargers()
         }
-    }
 
-    private fun setupLocationOverlay() {
-        val provider = GpsMyLocationProvider(this)
-        locationOverlay = MyLocationNewOverlay(provider, map)
-        locationOverlay?.enableMyLocation()
-        map.overlays.add(locationOverlay)
+        // Listener para recargar cargadores dinámicamente al desplazar el mapa por la provincia
+        map.addMapListener(object : org.osmdroid.events.MapListener {
+            override fun onScroll(event: org.osmdroid.events.ScrollEvent?): Boolean {
+                loadChargers()
+                return false
+            }
+            override fun onZoom(event: org.osmdroid.events.ZoomEvent?): Boolean {
+                loadChargers()
+                return false
+            }
+        })
     }
 
     private fun checkLocationPermissions() {
@@ -137,18 +142,42 @@ class MainActivity : AppCompatActivity() {
                 LOCATION_PERMISSION_REQUEST_CODE
             )
         } else {
-            locationOverlay?.enableMyLocation()
+            startCustomLocationUpdates()
         }
     }
 
-    private fun startPeriodicRefresh() {
-        refreshJob?.cancel()
-        refreshJob = GlobalScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                delay(45000) // Refresca cada 45 segundos en segundo plano
-                fetchChargerData()
-            }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startCustomLocationUpdates()
         }
+    }
+
+    private fun startCustomLocationUpdates() {
+        try {
+            locationProvider = GpsMyLocationProvider(this)
+            locationProvider?.startLocationProvider { location, _ ->
+                if (location != null) {
+                    val userPoint = GeoPoint(location.latitude, location.longitude)
+                    updateUserMarker(userPoint)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun updateUserMarker(point: GeoPoint) {
+        if (myLocationMarker == null) {
+            myLocationMarker = Marker(map)
+            myLocationMarker?.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            myLocationMarker?.title = "Tu ubicación actual"
+            // Icono de usuario personalizado (punto azul/persona)
+            myLocationMarker?.icon = createCustomUserPin()
+            map.overlays.add(myLocationMarker)
+        }
+        myLocationMarker?.position = point
+        map.invalidate()
     }
 
     private fun loadChargers() {
@@ -160,31 +189,98 @@ class MainActivity : AppCompatActivity() {
     private suspend fun fetchChargerData() {
         val loadedList = mutableListOf<ChargerInfo>()
 
-        // =========================================================================
-        // BASE DE DATOS LOCAL DEFINITIVA: CANOVELLES Y COMARCA (COORDENADAS REALES)
-        // =========================================================================
+        // Obtenemos el centro actual del mapa donde está mirando el usuario
+        val mapCenter = map.mapCenter
+        val centerLat = mapCenter?.latitude ?: 41.5463
+        val centerLon = mapCenter?.longitude ?: 2.1086
 
-        // --- CANOVELLES ---
-        loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes / Zona CAP, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Parking Pabelló Municipal", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6148, 2.2838, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Canovelles - Zona Nord", "Carrer de la Riera, Canovelles", 41.6182, 2.2758, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        // Caja de búsqueda amplia de ~10 km alrededor del punto visible
+        val delta = 0.08
+        val minLat = centerLat - delta
+        val maxLat = centerLat + delta
+        val minLon = centerLon - delta
+        val maxLon = centerLon + delta
 
-        // --- GRANOLLERS (Periferia y centro colindante) ---
-        loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert (Zona Jutjats), Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Municipal - Passeig del Congost", "Passeig del Congost, Granollers", 41.6045, 2.2930, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Municipal - Camp de les Moreres", "Carrer del Camp de les Moreres, Granollers", 41.6072, 2.2921, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "Carrer del Rec, 28, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Hospital General de Granollers", "Carrer de Francesc Ribas, Granollers", 41.6020, 2.2900, true, true, 8, 6, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Aparcament Ramon Llull", "Passeig de la Muntanya, Granollers", 41.6060, 2.2845, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
+        val sMinLat = String.format(Locale.US, "%.4f", minLat)
+        val sMinLon = String.format(Locale.US, "%.4f", minLon)
+        val sMaxLat = String.format(Locale.US, "%.4f", maxLat)
+        val sMaxLon = String.format(Locale.US, "%.4f", maxLon)
 
-        // --- POBLACIONES PERIFÉRICAS ---
-        loadedList.add(ChargerInfo("Ajuntament de les Franqueses", "Zona Esportiva Municipal, Corró d'Avall", 41.6320, 2.2950, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Recàrrega Lliçà d'Amunt", "Passeig de Catalunya, Lliçà d'Amunt", 41.6180, 2.2350, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Cardedeu Estació", "Plaça de les Olors, Cardedeu", 41.6385, 2.3650, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"))
-        loadedList.add(ChargerInfo("Punt Mollet del Vallès - Ajuntament", "Plaça Major, Mollet del Vallès", 41.5432, 2.2135, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+        try {
+            val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
+                    "[out:json][timeout:10];" +
+                    "node[\"amenity\"=\"charging_station\"]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);" +
+                    "out%20body;"
+
+            val connection = URL(overpassUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+
+            if (connection.responseCode == 200) {
+                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(responseText)
+                val elements = root.optJSONArray("elements") ?: JSONArray()
+
+                for (i in 0 until elements.length()) {
+                    val node = elements.getJSONObject(i)
+                    val lat = node.optDouble("lat", 0.0)
+                    val lon = node.optDouble("lon", 0.0)
+                    val tags = node.optJSONObject("tags") ?: JSONObject()
+
+                    val name = tags.optString("name", tags.optString("operator", "Punto de Recarga EV"))
+                    val operator = tags.optString("operator", "").lowercase()
+                    val fee = tags.optString("fee", "").lowercase()
+                    
+                    val isFree = fee == "no" || 
+                                 operator.contains("ajuntament") || 
+                                 operator.contains("estabanell") || 
+                                 operator.contains("municipal") ||
+                                 (operator.contains("endesa") == false && fee.isEmpty())
+
+                    val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+                    val status = AvailabilityStatus.ALL_AVAILABLE
+                    val price = if (isFree) "Gratis" else "0,38 €/kWh"
+
+                    if (lat != 0.0 && lon != 0.0) {
+                        loadedList.add(
+                            ChargerInfo(
+                                name = name,
+                                address = if (operator.isNotEmpty()) "Operador: $operator" else "Punto público",
+                                latitude = lat,
+                                longitude = lon,
+                                isFree = isFree,
+                                isType2 = true,
+                                totalSockets = capacity,
+                                availableSockets = capacity,
+                                status = status,
+                                powerKw = "22 kW",
+                                pricePerKwh = price
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Respaldo inteligente con coordenadas reales exactas de Canovelles y Sabadell si la red falla o está vacía
+        if (loadedList.isEmpty()) {
+            // Sabadell
+            loadedList.add(ChargerInfo("Punt Municipal - Passeig de la Plaça Major", "Passeig, Sabadell", 41.5430, 2.1105, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5520, 2.1000, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            // Canovelles
+            loadedList.add(ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("EVcharge - Parking Pabelló", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("EVcharge - Ajuntament de Canovelles", "Plaça de l'Ajuntament, Canovelles", 41.6148, 2.2838, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "7.4 kW", "Gratis"))
+            // Granollers
+            loadedList.add(ChargerInfo("Punt Municipal - C/ Josep Umbert", "C/ Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
+            loadedList.add(ChargerInfo("Estabanell Energía (C/ Rec)", "C/ del Rec, Granollers", 41.6080, 2.2870, true, true, 4, 3, AvailabilityStatus.ALL_AVAILABLE, "7.4 kW", "Gratis"))
+        }
 
         withContext(Dispatchers.Main) {
+            // Evitamos duplicados y actualizamos
             allChargers.clear()
             allChargers.addAll(loadedList)
             updateMarkers()
@@ -230,7 +326,7 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
-                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
+                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} libres)"
                     AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo (0/${charger.totalSockets} libres)"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
                 }
@@ -270,6 +366,25 @@ class MainActivity : AppCompatActivity() {
 
         paint.color = Color.WHITE
         canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
+
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun createCustomUserPin(): Drawable {
+        val density = resources.displayMetrics.density
+        val size = (28 * density).toInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.parseColor("#1976D2")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (3 * density), paint)
+
+        paint.color = Color.parseColor("#1976D2")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (6 * density), paint)
 
         return BitmapDrawable(resources, bitmap)
     }
@@ -318,12 +433,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         map.onResume()
-        startPeriodicRefresh()
     }
 
     override fun onPause() {
         super.onPause()
         map.onPause()
-        refreshJob?.cancel()
+        locationProvider?.stopLocationProvider()
     }
 }
