@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadChargers() {
+private fun loadChargers() {
     GlobalScope.launch(Dispatchers.IO) {
         val bbox = map.boundingBox
         val minLat = bbox?.latSouth ?: 41.10
@@ -152,10 +152,16 @@ class MainActivity : AppCompatActivity() {
         val maxLat = bbox?.latNorth ?: 41.90
         val maxLon = bbox?.lonEast ?: 2.80
 
+        // Forzar formato con punto (.) independiente de la región del móvil
+        val sMinLat = String.format(java.util.Locale.US, "%.4f", minLat)
+        val sMinLon = String.format(java.util.Locale.US, "%.4f", minLon)
+        val sMaxLat = String.format(java.util.Locale.US, "%.4f", maxLat)
+        val sMaxLon = String.format(java.util.Locale.US, "%.4f", maxLon)
+
         val loadedList = mutableListOf<ChargerInfo>()
 
         try {
-            val overpassUrl = "https://overpass-api.de/api/interpreter?data=[out:json][timeout:10];node[%22amenity%22=%22charging_station%22]($minLat,$minLon,$maxLat,$maxLon);out%20body;"
+            val overpassUrl = "https://overpass-api.de/api/interpreter?data=[out:json][timeout:10];node[%22amenity%22=%22charging_station%22]($sMinLat,$sMinLon,$sMaxLat,$sMaxLon);out%20body;"
             val connection = URL(overpassUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = 6000
             connection.readTimeout = 6000
