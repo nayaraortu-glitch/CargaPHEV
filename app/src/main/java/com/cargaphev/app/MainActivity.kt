@@ -109,7 +109,6 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        // Cargar cargadores asegurando que el mapa esté listo
         map.post {
             loadChargers()
         }
@@ -151,7 +150,7 @@ class MainActivity : AppCompatActivity() {
             loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW", "0,40 €/kWh"))
             loadedList.add(ChargerInfo("Punt Barberà Centre", "Passeig del Doctor Moragas, Barberà", 41.5160, 2.1220, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"))
 
-            // 2. Obtener centro del mapa con respaldo seguro (Sabadell por defecto si es 0.0)
+            // 2. Obtener centro del mapa con respaldo seguro
             val centerLat = if (map.mapCenter.latitude != 0.0) map.mapCenter.latitude else 41.5463
             val centerLon = if (map.mapCenter.longitude != 0.0) map.mapCenter.longitude else 2.1086
 
@@ -275,7 +274,6 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
-                    AvailabilityStatus.PARTIOutputStatus -> "🟡 Ocupación parcial"
                     AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
                     AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo (0/${charger.totalSockets} libres)"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
