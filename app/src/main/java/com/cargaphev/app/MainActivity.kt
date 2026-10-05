@@ -144,11 +144,11 @@ class MainActivity : AppCompatActivity() {
         GlobalScope.launch(Dispatchers.IO) {
             val loadedList = mutableListOf<ChargerInfo>()
 
-            // 1. Cargadores de muestra estables
+            // 1. Cargadores de muestra estables con colores correctos
             loadedList.add(ChargerInfo("Punt Càrrega Pl. del Gas", "Plaza del Gas, Sabadell", 41.5458, 2.1080, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW"))
             loadedList.add(ChargerInfo("Cargador Can Gambús", "Parque Can Gambús, Sabadell", 41.5490, 2.0950, true, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW"))
             loadedList.add(ChargerInfo("Endesa X Way - Fira", "Plaça de la Fira, Sabadell", 41.5430, 2.1020, false, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW"))
-            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTI_AVAILABLE, "22 kW"))
+            loadedList.add(ChargerInfo("Electrolinera E.Leclerc", "Av. de Barberà, Sabadell", 41.5320, 2.1150, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW"))
             loadedList.add(ChargerInfo("Punt Ajuntament Salut", "Carrer de la Salut, Sabadell", 41.5482, 2.1121, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW"))
             loadedList.add(ChargerInfo("Iberdrola Recharge Macià", "Av. Francesc Macià, Sabadell", 41.5550, 2.0990, false, true, 4, 0, AvailabilityStatus.FULLY_OCCUPIED, "50 kW"))
             loadedList.add(ChargerInfo("Tesla Supercharger", "Via de Massagué, Sabadell", 41.5505, 2.1065, false, true, 8, 5, AvailabilityStatus.PARTIALLY_AVAILABLE, "150 kW"))
@@ -183,7 +183,11 @@ class MainActivity : AppCompatActivity() {
                             else -> AvailabilityStatus.FULLY_OCCUPIED
                         }
 
-                        val availSockets = if (status == AvailabilityStatus.ALL_AVAILABLE) capacity else maxOf(1, capacity / 2)
+                        val availSockets = when (status) {
+                            AvailabilityStatus.ALL_AVAILABLE -> capacity
+                            AvailabilityStatus.PARTIALLY_AVAILABLE -> maxOf(1, capacity / 2)
+                            else -> 0
+                        }
 
                         if (lat != 0.0 && lon != 0.0) {
                             loadedList.add(
@@ -254,7 +258,7 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Libre (${charger.availableSockets}/${charger.totalSockets} tomas)"
-                    AvailabilityStatus.PARTIALL_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
+                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
                     AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo (0/${charger.totalSockets} libres)"
                     AvailabilityStatus.OUT_OF_SERVICE -> "🔘 Fuera de servicio"
                 }
