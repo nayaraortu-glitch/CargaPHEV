@@ -88,7 +88,7 @@ class MainActivity : AppCompatActivity() {
         map.isTilesScaledToDpi = true
 
         val mapController = map.controller
-        mapController.setZoom(14.0)
+        mapController.setZoom(13.0)
 
         val defaultCenter = GeoPoint(41.5463, 2.1086)
         mapController.setCenter(defaultCenter)
@@ -100,7 +100,7 @@ class MainActivity : AppCompatActivity() {
         btnLocation?.setOnClickListener {
             val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
             mapController.animateTo(center)
-            mapController.setZoom(16.0)
+            mapController.setZoom(15.0)
             Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
         }
 
@@ -127,7 +127,11 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
+        // 1. CARGA INSTANTÁNEA: Pinta el mapa inmediatamente con la base de datos local amplia
         loadFallbackDirectly()
+        updateMarkers()
+
+        // 2. ACTUALIZACIÓN EN SEGUNDO PLANO: Busca puntos adicionales y estados en tiempo real
         loadCataloniaOfficialChargers()
     }
 
@@ -276,20 +280,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadCataloniaOfficialChargers() {
-        Toast.makeText(this, "Actualizando cargadores y estados...", Toast.LENGTH_SHORT).show()
-
         GlobalScope.launch(Dispatchers.IO) {
             val fetchedList = mutableListOf<ChargerInfo>()
             var success = false
             try {
+                // Rango ampliado para cubrir la gran mayoría de áreas clave de Catalunya
                 val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:25];" +
-                        "node[\"amenity\"=\"charging_station\"](41.30,1.80,41.75,2.45);" +
-                        "out%20body;"
+                        "[out:json][timeout:20];" +
+                        "node[\"amenity\"=\"charging_station\"](40.80,0.50,42.40,3.20);" +
+                        "out%20body%20150;"
 
                 val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 15000
-                connection.readTimeout = 15000
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
                 connection.setRequestProperty("User-Agent", "CargaPHEV-AppCatalunya")
 
                 if (connection.responseCode == 200) {
@@ -372,11 +375,11 @@ class MainActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                if (success && fetchedList.size > 5) {
+                if (success && fetchedList.isNotEmpty()) {
                     for (newCharger in fetchedList) {
                         val existing = allChargers.find { 
-                            Math.abs(it.latitude - newCharger.latitude) < 0.0001 && 
-                            Math.abs(it.longitude - newCharger.longitude) < 0.0001 
+                            Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
+                            Math.abs(it.longitude - newCharger.longitude) < 0.0002 
                         }
                         if (existing != null) {
                             existing.status = newCharger.status
@@ -385,26 +388,45 @@ class MainActivity : AppCompatActivity() {
                             allChargers.add(newCharger)
                         }
                     }
-                    Toast.makeText(this@MainActivity, "¡Estados actualizados correctamente!", Toast.LENGTH_SHORT).show()
-                } else if (!success && allChargers.size <= 5) {
-                    loadFallbackDirectly()
-                    Toast.makeText(this@MainActivity, "Usando red de respaldo local", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this@MainActivity, "Datos actualizados en ${allChargers.size} puntos", Toast.LENGTH_SHORT).show()
                 }
                 updateMarkers()
             }
         }
     }
 
+    // BASE DE DATOS LOCAL AMPLIADA: Se muestra INSTANTÁNEAMENTE al abrir la app
     private fun loadFallbackDirectly() {
         val fallback = listOf(
+            // Vallès Occidental & Oriental
             ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
             ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
             ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera", 41.6118, 2.2818, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis"),
             ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 0, AvailabilityStatus.OUT_OF_SERVICE, "22 kW", "Gratis"),
             ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Sabadell Centre", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Recarga Rambla (Carcasa Estática)", "Rambla de Sabadell", 41.5475, 2.1051, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
+            ChargerInfo("Recarga Rambla (Carcasa Estática)", "Rambla de Sabadell", 41.5475, 2.1051, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Punt Carga Parc Vallès", "Av. Tèxtil, Terrassa", 41.5530, 2.0315, true, true, 4, 3, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres", 41.4812, 2.0715, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
+
+            // Barcelona Capital
+            ChargerInfo("Endesa X - Passeig de Gràcia", "Passeig de Gràcia, Barcelona", 41.3921, 2.1649, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "De pago"),
+            ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 3, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis / B:SM"),
+            ChargerInfo("B:SM - Sagrada Família", "C/ Mallorca, Barcelona", 41.4036, 2.1744, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis / B:SM"),
+            ChargerInfo("Punt Recarga Glòries", "Av. Diagonal, Barcelona", 41.4025, 2.1895, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Recarga Sants Estació", "Plaça dels Països Catalans", 41.3808, 2.1412, false, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "De pago"),
+
+            // Maresme & Baix Llobregat
+            ChargerInfo("Punt Municipal Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Cornellà Centre", "Av. del Parc, Cornellà", 41.3578, 2.0712, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Punt Recarga Castelldefels", "Av. de la Platja", 41.2685, 1.9805, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+
+            // Catalunya Central, Girona, Lleida & Tarragona
+            ChargerInfo("Estabanell - Vic Central", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Punt Recarga Manresa", "Passeig Pere III, Manresa", 41.7265, 1.8260, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Girona - Devesa", "Passeig de la Devesa, Girona", 41.9852, 2.8185, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            ChargerInfo("Recarga Tarragona Imperial", "Plaça Imperial Tàrraco", 41.1172, 1.2425, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis"),
+            ChargerInfo("Punt Recarga Lleida Ricard Viñes", "Plaça Ricard Viñes, Lleida", 41.6198, 0.6212, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis")
         )
         
         for (item in fallback) {
@@ -478,7 +500,6 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-    // Dibujo Vectorial del Poste de Recarga EV con su manguera, enchufe y letras EV
     private fun createCustomPinIcon(colorInt: Int): Drawable {
         val density = resources.displayMetrics.density
         val width = (42 * density).toInt()
@@ -489,15 +510,12 @@ class MainActivity : AppCompatActivity() {
 
         paint.color = colorInt
 
-        // Base del cargador
         val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
         canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
 
-        // Cuerpo del poste
         val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
         canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
 
-        // Cable y enchufe en el lateral derecho
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 3 * density
         val path = Path()
@@ -512,7 +530,6 @@ class MainActivity : AppCompatActivity() {
         canvas.drawRect(32 * density, 3 * density, 34 * density, 8 * density, paint)
         canvas.drawRect(36 * density, 3 * density, 38 * density, 8 * density, paint)
 
-        // Letras "E" y "V" en el centro en blanco
         paint.color = Color.WHITE
         paint.textSize = 12 * density
         paint.typeface = Typeface.DEFAULT_BOLD
@@ -523,7 +540,6 @@ class MainActivity : AppCompatActivity() {
         return BitmapDrawable(resources, bitmap)
     }
 
-    // Dibujo Vectorial del Vehículo Visto desde Arriba
     private fun createCustomUserPin(): Drawable {
         val density = resources.displayMetrics.density
         val width = (36 * density).toInt()
@@ -532,25 +548,21 @@ class MainActivity : AppCompatActivity() {
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Carrocería blanca metalizada
         paint.color = Color.WHITE
         paint.style = Paint.Style.FILL
         val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
         canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
 
-        // Perfil y bordes oscuros del vehículo
         paint.style = Paint.Style.STROKE
         paint.color = Color.parseColor("#212121")
         paint.strokeWidth = 1.8f * density
         canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
 
-        // Retrovisores laterales
         paint.style = Paint.Style.FILL
         paint.color = Color.parseColor("#333333")
         canvas.drawRoundRect(RectF(2 * density, 18 * density, 6 * density, 24 * density), 2 * density, 2 * density, paint)
         canvas.drawRoundRect(RectF(30 * density, 18 * density, 34 * density, 24 * density), 2 * density, 2 * density, paint)
 
-        // Parabrisas y cristal panorámico negro
         paint.color = Color.parseColor("#1A1A1A")
         val windshieldRect = RectF(10 * density, 14 * density, 26 * density, 24 * density)
         canvas.drawRoundRect(windshieldRect, 4 * density, 4 * density, paint)
@@ -558,7 +570,6 @@ class MainActivity : AppCompatActivity() {
         val roofRect = RectF(9 * density, 22 * density, 27 * density, 44 * density)
         canvas.drawRoundRect(roofRect, 3 * density, 3 * density, paint)
 
-        // Faros traseros en rojo
         paint.color = Color.parseColor("#D32F2F")
         canvas.drawRect(8 * density, 49 * density, 13 * density, 51 * density, paint)
         canvas.drawRect(23 * density, 49 * density, 28 * density, 51 * density, paint)
