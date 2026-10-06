@@ -7,6 +7,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
@@ -144,7 +147,7 @@ class MainActivity : AppCompatActivity() {
                 textSize = 26f
                 setTextColor(Color.parseColor("#1976D2"))
                 gravity = Gravity.CENTER
-                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTypeface(null, Typeface.BOLD)
             })
 
             addView(TextView(context).apply {
@@ -159,7 +162,7 @@ class MainActivity : AppCompatActivity() {
                 text = "📖 GUÍA DE ESTADOS Y COLORES:"
                 textSize = 14f
                 setTextColor(Color.parseColor("#333333"))
-                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTypeface(null, Typeface.BOLD)
                 setPadding(0, 0, 0, 15)
             })
 
@@ -185,7 +188,7 @@ class MainActivity : AppCompatActivity() {
                 textSize = 15f
                 setTextColor(Color.parseColor("#2E7D32"))
                 gravity = Gravity.CENTER
-                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTypeface(null, Typeface.BOLD)
                 setPadding(0, 40, 0, 0)
             })
 
@@ -264,7 +267,7 @@ class MainActivity : AppCompatActivity() {
         if (myLocationMarker == null) {
             myLocationMarker = Marker(map)
             myLocationMarker?.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            myLocationMarker?.title = "Tu ubicación actual"
+            myLocationMarker?.title = "Tu coche (Ubicación actual)"
             myLocationMarker?.icon = createCustomUserPin()
             map.overlays.add(myLocationMarker)
         }
@@ -475,40 +478,90 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
+    // Dibujo Vectorial del Poste de Recarga EV con su manguera, enchufe y letras EV
     private fun createCustomPinIcon(colorInt: Int): Drawable {
         val density = resources.displayMetrics.density
-        val size = (36 * density).toInt()
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val width = (42 * density).toInt()
+        val height = (50 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        paint.color = Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-
         paint.color = colorInt
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (3 * density), paint)
 
+        // Base del cargador
+        val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
+        canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
+
+        // Cuerpo del poste
+        val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
+        canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
+
+        // Cable y enchufe en el lateral derecho
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 3 * density
+        val path = Path()
+        path.moveTo(28 * density, 26 * density)
+        path.lineTo(34 * density, 26 * density)
+        path.lineTo(34 * density, 16 * density)
+        canvas.drawPath(path, paint)
+
+        paint.style = Paint.Style.FILL
+        val plugRect = RectF(30 * density, 8 * density, 38 * density, 16 * density)
+        canvas.drawRoundRect(plugRect, 2 * density, 2 * density, paint)
+        canvas.drawRect(32 * density, 3 * density, 34 * density, 8 * density, paint)
+        canvas.drawRect(36 * density, 3 * density, 38 * density, 8 * density, paint)
+
+        // Letras "E" y "V" en el centro en blanco
         paint.color = Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
+        paint.textSize = 12 * density
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText("E", 18 * density, 21 * density, paint)
+        canvas.drawText("V", 18 * density, 36 * density, paint)
 
         return BitmapDrawable(resources, bitmap)
     }
 
+    // Dibujo Vectorial del Vehículo Visto desde Arriba
     private fun createCustomUserPin(): Drawable {
         val density = resources.displayMetrics.density
-        val size = (28 * density).toInt()
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val width = (36 * density).toInt()
+        val height = (56 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        paint.color = Color.parseColor("#1976D2")
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-
+        // Carrocería blanca metalizada
         paint.color = Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (3 * density), paint)
+        paint.style = Paint.Style.FILL
+        val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
+        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
 
-        paint.color = Color.parseColor("#1976D2")
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (6 * density), paint)
+        // Perfil y bordes oscuros del vehículo
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#212121")
+        paint.strokeWidth = 1.8f * density
+        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
+
+        // Retrovisores laterales
+        paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#333333")
+        canvas.drawRoundRect(RectF(2 * density, 18 * density, 6 * density, 24 * density), 2 * density, 2 * density, paint)
+        canvas.drawRoundRect(RectF(30 * density, 18 * density, 34 * density, 24 * density), 2 * density, 2 * density, paint)
+
+        // Parabrisas y cristal panorámico negro
+        paint.color = Color.parseColor("#1A1A1A")
+        val windshieldRect = RectF(10 * density, 14 * density, 26 * density, 24 * density)
+        canvas.drawRoundRect(windshieldRect, 4 * density, 4 * density, paint)
+
+        val roofRect = RectF(9 * density, 22 * density, 27 * density, 44 * density)
+        canvas.drawRoundRect(roofRect, 3 * density, 3 * density, paint)
+
+        // Faros traseros en rojo
+        paint.color = Color.parseColor("#D32F2F")
+        canvas.drawRect(8 * density, 49 * density, 13 * density, 51 * density, paint)
+        canvas.drawRect(23 * density, 49 * density, 28 * density, 51 * density, paint)
 
         return BitmapDrawable(resources, bitmap)
     }
