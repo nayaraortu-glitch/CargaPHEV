@@ -23,6 +23,21 @@
             </intent-filter>
         </activity>
 
+    <!-- Servicio de Android Auto -->
+    <service
+        android:name=".car.CargaCarAppService"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="androidx.car.app.CarAppService" />
+            <category android:name="androidx.car.app.category.CHARGING" />
+        </intent-filter>
+    </service>
+
+    <!-- Versión mínima de la API de Coches compatible -->
+    <meta-data
+        android:name="androidx.car.app.minCarApiLevel"
+        android:value="1" />
+
     </application>
 
 </manifest>
