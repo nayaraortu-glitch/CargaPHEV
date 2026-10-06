@@ -35,7 +35,7 @@
         android:exported="true">
         <intent-filter>
             <action android:name="androidx.car.app.CarAppService" />
-            <category android:name="androidx.car.app.category.CHARGING" />
+            <category android:name="androidx.car.app.category.NAVIGATION" />
         </intent-filter>
     </service>
     <!-- Versión mínima de la API de Coches compatible -->
