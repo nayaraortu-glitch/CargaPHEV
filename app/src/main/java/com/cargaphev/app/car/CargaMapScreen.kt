@@ -11,18 +11,19 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
     private var mostrarSoloGratis = false
 
     override fun onGetTemplate(): Template {
-        // Botón de acción superior para alternar el filtro de gratuitos
-        val actionFiltro = Action.Builder()
+        // Botón superior para refrescar / alternar el filtro manualmente como te gusta
+        val actionRefrescarFiltro = Action.Builder()
             .setTitle(if (mostrarSoloGratis) "Ver Todos" else "Solo Gratis")
             .setOnClickListener {
                 mostrarSoloGratis = !mostrarSoloGratis
-                invalidate() // Refresca la pantalla al pulsar el botón
+                // Fuerza la recarga manual de la lista al pulsar el botón
+                invalidate() 
             }
             .build()
 
         val itemListBuilder = ItemList.Builder()
 
-        // Lista de puntos de recarga en Catalunya y sus estados
+        // Lista de cargadores gestionada de forma directa y estable
         val cargadoresCoche = listOf(
             Triple("🟢 EVcharge - Eix Macià", "2/2 tomas libres • Gratis • 22 kW (1.2 km)", Pair(41.5518, 2.0998)),
             Triple("🟡 CAP Canovelles", "1/2 tomas libres • Gratis • 22 kW (3.5 km)", Pair(41.6163, 2.2789)),
@@ -35,7 +36,6 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
             val desc = item.second
             val coords = item.third
 
-            // Si el filtro de solo gratuitos está activo, omitimos los demás
             if (mostrarSoloGratis && !desc.contains("Gratis")) continue
 
             val row = Row.Builder()
@@ -45,7 +45,7 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
                     val lat = coords.first
                     val lon = coords.second
                     
-                    // Lanza Waze directamente en la pantalla de Android Auto
+                    // Lanzar Waze directamente al pulsar el cargador en el coche
                     val wazeUri = Uri.parse("https://waze.com/ul?ll=$lat,$lon&navigate=yes")
                     val intent = Intent(Intent.ACTION_VIEW, wazeUri)
                     intent.setPackage("com.waze")
@@ -62,13 +62,12 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
             itemListBuilder.addItem(row)
         }
 
-        // Construcción de la plantilla de lista oficial para el coche
         return ListTemplate.Builder()
             .setTitle("Cargadores PHEV Catalunya")
             .setSingleList(itemListBuilder.build())
             .setActionStrip(
                 ActionStrip.Builder()
-                    .addAction(actionFiltro)
+                    .addAction(actionRefrescarFiltro)
                     .build()
             )
             .build()
