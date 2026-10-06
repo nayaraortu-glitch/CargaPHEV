@@ -36,4 +36,8 @@ dependencies {
     // Peticiones de red HTTP y Asincronía
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Librería para Android Auto (Plantillas de mapas y listas)
+    implementation("androidx.car.app:app:1.7.0")
+    implementation("androidx.car.app:app-projected:1.7.0")
 }
