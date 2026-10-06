@@ -40,8 +40,4 @@ dependencies {
     // Librería para Android Auto (Plantillas de mapas y listas)
     implementation("androidx.car.app:app:1.7.0")
     implementation("androidx.car.app:app-projected:1.7.0")
-
-    // Librerías para Android Auto
-    implementation("androidx.car.app:app:1.7.0")
-    implementation("androidx.car.app:app-projected:1.7.0")
 }
