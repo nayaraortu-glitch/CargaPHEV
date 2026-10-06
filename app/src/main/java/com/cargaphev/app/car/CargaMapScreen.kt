@@ -5,14 +5,13 @@ import android.net.Uri
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.*
-import androidx.car.app.navigation.model.PlaceListMapTemplate
 
 class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
 
     private var mostrarSoloGratis = false
 
     override fun onGetTemplate(): Template {
-        // Botón de acción superior para alternar el filtro
+        // Botón de acción superior para alternar el filtro de gratuitos
         val actionFiltro = Action.Builder()
             .setTitle(if (mostrarSoloGratis) "Ver Todos" else "Solo Gratis")
             .setOnClickListener {
@@ -21,17 +20,9 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
             }
             .build()
 
-        val builder = PlaceListMapTemplate.Builder()
-            .setTitle("Cargadores PHEV Catalunya")
-            .setActionStrip(
-                ActionStrip.Builder()
-                    .addAction(actionFiltro)
-                    .build()
-            )
-
         val itemListBuilder = ItemList.Builder()
 
-        // Lista de ejemplo con los puntos de recarga y sus estados
+        // Lista de puntos de recarga en Catalunya y sus estados
         val cargadoresCoche = listOf(
             Triple("🟢 EVcharge - Eix Macià", "2/2 tomas libres • Gratis • 22 kW (1.2 km)", Pair(41.5518, 2.0998)),
             Triple("🟡 CAP Canovelles", "1/2 tomas libres • Gratis • 22 kW (3.5 km)", Pair(41.6163, 2.2789)),
@@ -44,7 +35,7 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
             val desc = item.second
             val coords = item.third
 
-            // Si el filtro de solo gratuitos está activo, omitimos los que no lo sean
+            // Si el filtro de solo gratuitos está activo, omitimos los demás
             if (mostrarSoloGratis && !desc.contains("Gratis")) continue
 
             val row = Row.Builder()
@@ -71,9 +62,15 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
             itemListBuilder.addItem(row)
         }
 
-        builder.setItemList(itemListBuilder.build())
-        builder.setLoading(false)
-
-        return builder.build()
+        // Construcción de la plantilla de lista oficial para el coche
+        return ListTemplate.Builder()
+            .setTitle("Cargadores PHEV Catalunya")
+            .setSingleList(itemListBuilder.build())
+            .setActionStrip(
+                ActionStrip.Builder()
+                    .addAction(actionFiltro)
+                    .build()
+            )
+            .build()
     }
 }
