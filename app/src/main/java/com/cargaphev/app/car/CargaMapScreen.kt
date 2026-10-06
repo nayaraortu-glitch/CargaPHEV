@@ -1,79 +1,76 @@
-package com.tuapp.cargaphev.car
+package com.cargaphev.app.car
 
+import android.content.Intent
+import android.net.Uri
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.*
 import androidx.car.app.navigation.model.PlaceListMapTemplate
-import androidx.car.app.model.Action
-import androidx.car.app.model.Header
-import androidx.car.app.model.ItemList
-import androidx.car.app.model.Row
-import androidx.car.app.model.CarIcon
-import androidx.core.graphics.drawable.IconCompat
-// Importa aquí tu modelo de datos o base de datos local de cargadores
 
 class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
 
     private var mostrarSoloGratis = false
 
     override fun onGetTemplate(): Template {
-        // 1. Filtrar tu lista de cargadores (todos o solo gratuitos)
-        // val listaFiltrada = obtenerCargadoresLocales().filter { !mostrarSoloGratis || it.esGratis }
-        
+        // Botón de acción superior para alternar el filtro
+        val actionFiltro = Action.Builder()
+            .setTitle(if (mostrarSoloGratis) "Ver Todos" else "Solo Gratis")
+            .setOnClickListener {
+                mostrarSoloGratis = !mostrarSoloGratis
+                invalidate() // Refresca la pantalla al pulsar el botón
+            }
+            .build()
+
         val builder = PlaceListMapTemplate.Builder()
             .setTitle("Cargadores PHEV Catalunya")
-            .setHeader(
-                Header.Builder()
-                    .setTitle("Cargadores PHEV Catalunya")
-                    .addAction(
-                        Action.Builder()
-                            .setTitle(if (mostrarSoloGratis) "Ver Todos" "Solo Gratis")
-                            .setOnClickListener {
-                                mostrarSoloGratis = !mostrarSoloGratis
-                                invalidate() // Refresca la pantalla al pulsar el botón
-                            }
-                            .build()
-                    )
+            .setActionStrip(
+                ActionStrip.Builder()
+                    .addAction(actionFiltro)
                     .build()
             )
 
         val itemListBuilder = ItemList.Builder()
 
-        /* 
-           Simulamos los cargadores ordenados por proximidad en tu ruta por Catalunya.
-           Aquí recorrerías tu lista ordenada por distancia GPS:
-        */
-        
-        // Ejemplo de elemento para la lista del coche:
-        val row = Row.Builder()
-            .setTitle("🟢 EVcharge - Eix Macià (1.2 km)")
-            .addText("2/2 tomas libres • Gratis • 22 kW")
-            .setBrowsable(false)
-            .setOnClickListener {
-                // Acción de Navegación: Lanza Waze o el navegador predeterminado del coche
-                // Coordenadas de ejemplo del punto:
-                val lat = 41.5463
-                val lon = 2.1086
-                val title = "EVcharge - Eix Macià"
-                
-                val uri = android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon($title)")
-                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                // Forzar preferentemente Waze si está instalado en el móvil
-                intent.setPackage("com.waze")
-                
-                try {
-                    carContext.startCarApp(intent)
-                } catch (e: Exception) {
-                    // Si Waze no saltase directamente, abre el navegador genérico de Android Auto
-                    carContext.startCarApp(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, 
-                        android.net.Uri.parse("geo:0,0?q=$lat,$lon($title)"))
-                    )
-                }
-            }
-            .build()
+        // Lista de ejemplo con los puntos de recarga y sus estados
+        val cargadoresCoche = listOf(
+            Triple("🟢 EVcharge - Eix Macià", "2/2 tomas libres • Gratis • 22 kW (1.2 km)", Pair(41.5518, 2.0998)),
+            Triple("🟡 CAP Canovelles", "1/2 tomas libres • Gratis • 22 kW (3.5 km)", Pair(41.6163, 2.2789)),
+            Triple("🔴 Pabellón Canovelles", "0/2 tomas ocupadas • Gratis • 22 kW (4.1 km)", Pair(41.6118, 2.2818)),
+            Triple("🔵 Recarga Rambla (Estática)", "Punto físico sin tiempo real • Gratis • 22 kW (5.0 km)", Pair(41.5475, 2.1051))
+        )
 
-        itemListBuilder.addItem(row)
+        for (item in cargadoresCoche) {
+            val nombre = item.first
+            val desc = item.second
+            val coords = item.third
+
+            // Si el filtro de solo gratuitos está activo, omitimos los que no lo sean
+            if (mostrarSoloGratis && !desc.contains("Gratis")) continue
+
+            val row = Row.Builder()
+                .setTitle(nombre)
+                .addText(desc)
+                .setOnClickListener {
+                    val lat = coords.first
+                    val lon = coords.second
+                    
+                    // Lanza Waze directamente en la pantalla de Android Auto
+                    val wazeUri = Uri.parse("https://waze.com/ul?ll=$lat,$lon&navigate=yes")
+                    val intent = Intent(Intent.ACTION_VIEW, wazeUri)
+                    intent.setPackage("com.waze")
+                    
+                    try {
+                        carContext.startCarApp(intent)
+                    } catch (e: Exception) {
+                        val fallbackUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon($nombre)")
+                        carContext.startCarApp(Intent(Intent.ACTION_VIEW, fallbackUri))
+                    }
+                }
+                .build()
+
+            itemListBuilder.addItem(row)
+        }
+
         builder.setItemList(itemListBuilder.build())
         builder.setLoading(false)
 
