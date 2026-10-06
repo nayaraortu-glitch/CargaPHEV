@@ -24,6 +24,12 @@
         </activity>
 
     <!-- Servicio de Android Auto -->
+    <!-- Metadato obligatorio para que Android Auto descubra la app -->
+    <meta-data
+        android:name="com.google.android.gms.car.application"
+        android:resource="@xml/automotive_app_desc" />
+
+    <!-- Tu servicio existente -->
     <service
         android:name=".car.CargaCarAppService"
         android:exported="true">
@@ -32,7 +38,6 @@
             <category android:name="androidx.car.app.category.CHARGING" />
         </intent-filter>
     </service>
-
     <!-- Versión mínima de la API de Coches compatible -->
     <meta-data
         android:name="androidx.car.app.minCarApiLevel"
