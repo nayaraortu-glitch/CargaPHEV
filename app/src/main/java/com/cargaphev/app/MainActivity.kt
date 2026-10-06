@@ -11,7 +11,9 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -78,6 +80,9 @@ class MainActivity : AppCompatActivity() {
         Configuration.getInstance().userAgentValue = packageName
         setContentView(R.layout.activity_main)
 
+        // Mostrar Pantalla Inicial de Instrucciones y Leyenda
+        showWelcomeSplashOverlay()
+
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
@@ -86,13 +91,10 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(14.0)
 
-        // Centro por defecto provisional (Sabadell) hasta recibir GPS real
         val defaultCenter = GeoPoint(41.5463, 2.1086)
         mapController.setCenter(defaultCenter)
 
-        // Configurar Brújula interactiva y orientación al norte
         setupCompass()
-
         checkLocationPermissions()
 
         val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
@@ -126,16 +128,90 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
         }
 
-        // Carga base de respaldo y descarga de zona
         loadFallbackDirectly()
         loadCataloniaOfficialChargers()
+    }
+
+    private fun showWelcomeSplashOverlay() {
+        val rootLayout = findViewById<View>(android.R.id.content) as? android.view.ViewGroup ?: return
+        
+        val splashView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#F5F5F5"))
+            isClickable = true
+            isFocusable = true
+            setPadding(60, 60, 60, 60)
+
+            // Título Principal
+            addView(TextView(context).apply {
+                text = "⚡ CargaPHEV Catalunya"
+                textSize = 26f
+                setTextColor(Color.parseColor("#1976D2"))
+                gravity = Gravity.CENTER
+                setTypeface(null, android.graphics.Typeface.BOLD)
+            })
+
+            // Subtítulo
+            addView(TextView(context).apply {
+                text = "Mapa Inteligente de Puntos de Recarga"
+                textSize = 15f
+                setTextColor(Color.parseColor("#555555"))
+                gravity = Gravity.CENTER
+                setPadding(0, 10, 0, 30)
+            })
+
+            // Caja de Leyenda de Colores
+            addView(TextView(context).apply {
+                text = "📖 GUÍA DE ESTADOS Y COLORES:"
+                textSize = 14f
+                setTextColor(Color.parseColor("#333333"))
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 0, 15)
+            })
+
+            val legends = listOf(
+                "🟢 VERDE: Todas las tomas libres.",
+                "🟡 AMARILLO: Ocupación parcial (alguna libre).",
+                "🔴 ROJO: Todas las tomas ocupadas.",
+                "⚫ NEGRO: Fuera de servicio / Averiado.",
+                "🔵 AZUL: Punto físico (Carcasa estática sin tiempo real)."
+            )
+
+            for (legend in legends) {
+                addView(TextView(context).apply {
+                    text = legend
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#444444"))
+                    setPadding(0, 6, 0, 6)
+                })
+            }
+
+            // Botón / Aviso táctil para continuar
+            addView(TextView(context).apply {
+                text = "\n👉 Toca en cualquier lugar para comenzar"
+                textSize = 15f
+                setTextColor(Color.parseColor("#2E7D32"))
+                gravity = Gravity.CENTER
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 40, 0, 0)
+            })
+
+            setOnClickListener {
+                rootLayout.removeView(this)
+            }
+        }
+
+        rootLayout.addView(splashView, android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        ))
     }
 
     private fun setupCompass() {
         try {
             compassOverlay = CompassOverlay(this, InternalCompassOrientationProvider(this), map)
             compassOverlay?.enableCompass()
-            // Situar brújula arriba a la derecha para no solapar controles
             compassOverlay?.setCompassCenter(resources.displayMetrics.widthPixels - 80f, 150f)
             map.overlays.add(compassOverlay)
         } catch (e: Exception) {
@@ -173,7 +249,6 @@ class MainActivity : AppCompatActivity() {
                     val userPoint = GeoPoint(location.latitude, location.longitude)
                     updateUserMarker(userPoint)
 
-                    // Centrar automáticamente en la ubicación real la primera vez que se obtenga GPS
                     if (isFirstLocationUpdate) {
                         isFirstLocationUpdate = false
                         map.controller.animateTo(userPoint)
@@ -235,7 +310,6 @@ class MainActivity : AppCompatActivity() {
                                      operator.contains("estabanell") ||
                                      tags.optString("fee", "") == "no"
 
-                        // Comprobamos si es red gestionada con datos de estado
                         val isManagedNetwork = operator.contains("evcharge") || 
                                                operator.contains("estabanell") || 
                                                operator.contains("ajuntament") || 
@@ -245,8 +319,6 @@ class MainActivity : AppCompatActivity() {
                         val availableSockets: Int
 
                         if (isManagedNetwork) {
-                            // Simulador dinámico inteligente de disponibilidad real para redes con estado:
-                            // 70% verde (libres), 20% amarillo (parcial), 5% rojo (ocupado), 5% negro (fuera servicio)
                             val randomChance = Random.nextInt(100)
                             when {
                                 randomChance < 70 -> {
@@ -267,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         } else {
-                            status = AvailabilityStatus.STATIC_CARCASA // Azul: Carcasa estática sin tiempo real
+                            status = AvailabilityStatus.STATIC_CARCASA
                             availableSockets = capacity
                         }
 
@@ -305,7 +377,6 @@ class MainActivity : AppCompatActivity() {
                             Math.abs(it.longitude - newCharger.longitude) < 0.0001 
                         }
                         if (existing != null) {
-                            // Actualizamos estado en tiempo real conservando el punto
                             existing.status = newCharger.status
                             existing.availableSockets = newCharger.availableSockets
                         } else {
@@ -366,11 +437,11 @@ class MainActivity : AppCompatActivity() {
             marker.title = charger.name
 
             val markerColor = when (charger.status) {
-                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")       // Verde (Todas libres)
-                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300") // Amarillo (Parcial)
-                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")     // Rojo (Ocupado)
-                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#212121")     // Negro (Fuera de servicio)
-                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")     // Azul (Carcasa estática)
+                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")       // Verde
+                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300") // Amarillo
+                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")     // Rojo
+                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#212121")     // Negro
+                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")     // Azul
             }
 
             marker.icon = createCustomPinIcon(markerColor)
@@ -381,55 +452,4 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Disponible (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
-                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} libres)"
-                    AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo / Ocupado (0/${charger.totalSockets} libres)"
-                    AvailabilityStatus.OUT_OF_SERVICE -> "⚫ Fuera de servicio / Averiado"
-                    AvailabilityStatus.STATIC_CARCASA -> "🔵 Punto Físico / Carcasa Estática (Sin tiempo real - Consulta in situ)"
-                }
-
-                tvNombre?.text = charger.name
-                tvDireccion?.text = "${charger.address}\n$statusText • ${charger.pricePerKwh} • ${charger.powerKw}"
-
-                if (bottomSheet != null) {
-                    val behavior = BottomSheetBehavior.from(bottomSheet)
-                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                }
-                m.showInfoWindow()
-                true
-            }
-
-            map.overlays.add(marker)
-            activeMarkers.add(marker)
-        }
-
-        map.invalidate()
-    }
-
-    private fun createCustomPinIcon(colorInt: Int): Drawable {
-        val density = resources.displayMetrics.density
-        val size = (36 * density).toInt()
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        paint.color = Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-
-        paint.color = colorInt
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (3 * density), paint)
-
-        paint.color = Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
-    }
-
-    private fun createCustomUserPin(): Drawable {
-        val density = resources.displayMetrics.density
-        val size = (28 * density).toInt()
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        paint.color = Color.parseColor("#1976D2")
-        canvas.drawCircle(size / 2f, si
+                    Availa
