@@ -23,25 +23,25 @@
             </intent-filter>
         </activity>
 
-    <!-- Servicio de Android Auto -->
-    <!-- Metadato obligatorio para que Android Auto descubra la app -->
-    <meta-data
-        android:name="com.google.android.gms.car.application"
-        android:resource="@xml/automotive_app_desc" />
+        <!-- Metadato obligatorio para que Android Auto descubra la app -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
 
-    <!-- Tu servicio existente -->
-    <service
-        android:name=".car.CargaCarAppService"
-        android:exported="true">
-        <intent-filter>
-            <action android:name="androidx.car.app.CarAppService" />
-            <category android:name="androidx.car.app.category.NAVIGATION" />
-        </intent-filter>
-    </service>
-    <!-- Versión mínima de la API de Coches compatible -->
-    <meta-data
-        android:name="androidx.car.app.minCarApiLevel"
-        android:value="1" />
+        <!-- Servicio de Android Auto con la acción corregida -->
+        <service
+            android:name=".car.CargaCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.action.RENDER" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
+
+        <!-- Versión mínima de la API de Coches compatible -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
 
     </application>
 
