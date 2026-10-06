@@ -33,8 +33,6 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.compass.CompassOverlay
-import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.random.Random
@@ -49,7 +47,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedCharger: ChargerInfo? = null
     private var myLocationMarker: Marker? = null
     private var locationProvider: org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider? = null
-    private var compassOverlay: CompassOverlay? = null
     private var isFirstLocationUpdate = true
 
     enum class AvailabilityStatus {
@@ -83,7 +80,6 @@ class MainActivity : AppCompatActivity() {
         showWelcomeSplashOverlay()
 
         map = findViewById(R.id.map)
-        setupCompass()
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
         map.isTilesScaledToDpi = true
@@ -94,6 +90,7 @@ class MainActivity : AppCompatActivity() {
         val defaultCenter = GeoPoint(41.5463, 2.1086)
         mapController.setCenter(defaultCenter)
 
+        setupCompass()
         checkLocationPermissions()
 
         val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
@@ -205,33 +202,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupCompass() {
         try {
-            compassOverlay = CompassOverlay(this, InternalCompassOrientationProvider(this), map)
-            compassOverlay?.enableCompass()
-            compassOverlay?.setCompassCenter(resources.displayMetrics.widthPixels - 80f, 150f)
-            map.overlays.add(compassOverlay)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun setupCompass() {
-        try {
-            // 1. Habilitar el gesto de rotación con dos dedos en el mapa
             val rotationGestureOverlay = org.osmdroid.views.overlay.gestures.RotationGestureOverlay(map)
             rotationGestureOverlay.isEnabled = true
             map.setMultiTouchControls(true)
             map.overlays.add(rotationGestureOverlay)
 
-            // 2. Configurar la brújula y el botón flotante para volver al Norte (Orientación 0)
             val btnCompass = findViewById<FloatingActionButton>(resources.getIdentifier("btnCompass", "id", packageName))
             btnCompass?.setOnClickListener {
-                // Animar el mapa para que vuelva a orientarse hacia el Norte (bearing = 0)
                 map.controller.animateTo(map.mapCenter)
                 map.setMapOrientation(0f)
                 Toast.makeText(this, "Mapa orientado al Norte", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun checkLocationPermissions() {
+        val fineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarseLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+
+        if (fineLocation != PackageManager.PERMISSION_GRANTED || coarseLocation != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            startCustomLocationUpdates()
         }
     }
 
@@ -343,6 +341,7 @@ class MainActivity : AppCompatActivity() {
                             status = AvailabilityStatus.STATIC_CARCASA
                             availableSockets = capacity
                         }
+
                         if (lat != 0.0 && lon != 0.0) {
                             fetchedList.add(
                                 ChargerInfo(
@@ -560,13 +559,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         map.onResume()
-        compassOverlay?.enableCompass()
     }
 
     override fun onPause() {
         super.onPause()
         map.onPause()
-        compassOverlay?.disableCompass()
         locationProvider?.stopLocationProvider()
     }
 }
