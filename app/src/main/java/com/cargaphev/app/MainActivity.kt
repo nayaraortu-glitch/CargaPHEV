@@ -80,7 +80,6 @@ class MainActivity : AppCompatActivity() {
         Configuration.getInstance().userAgentValue = packageName
         setContentView(R.layout.activity_main)
 
-        // Mostrar Pantalla Inicial de Instrucciones y Leyenda
         showWelcomeSplashOverlay()
 
         map = findViewById(R.id.map)
@@ -143,7 +142,6 @@ class MainActivity : AppCompatActivity() {
             isFocusable = true
             setPadding(60, 60, 60, 60)
 
-            // Título Principal
             addView(TextView(context).apply {
                 text = "⚡ CargaPHEV Catalunya"
                 textSize = 26f
@@ -152,7 +150,6 @@ class MainActivity : AppCompatActivity() {
                 setTypeface(null, android.graphics.Typeface.BOLD)
             })
 
-            // Subtítulo
             addView(TextView(context).apply {
                 text = "Mapa Inteligente de Puntos de Recarga"
                 textSize = 15f
@@ -161,7 +158,6 @@ class MainActivity : AppCompatActivity() {
                 setPadding(0, 10, 0, 30)
             })
 
-            // Caja de Leyenda de Colores
             addView(TextView(context).apply {
                 text = "📖 GUÍA DE ESTADOS Y COLORES:"
                 textSize = 14f
@@ -187,7 +183,6 @@ class MainActivity : AppCompatActivity() {
                 })
             }
 
-            // Botón / Aviso táctil para continuar
             addView(TextView(context).apply {
                 text = "\n👉 Toca en cualquier lugar para comenzar"
                 textSize = 15f
@@ -342,7 +337,6 @@ class MainActivity : AppCompatActivity() {
                             status = AvailabilityStatus.STATIC_CARCASA
                             availableSockets = capacity
                         }
-
                         if (lat != 0.0 && lon != 0.0) {
                             fetchedList.add(
                                 ChargerInfo(
@@ -452,4 +446,121 @@ class MainActivity : AppCompatActivity() {
 
                 val statusText = when (charger.status) {
                     AvailabilityStatus.ALL_AVAILABLE -> "🟢 Disponible (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
-                    Availa
+                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} libres)"
+                    AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo / Ocupado (0/${charger.totalSockets} libres)"
+                    AvailabilityStatus.OUT_OF_SERVICE -> "⚫ Fuera de servicio / Averiado"
+                    AvailabilityStatus.STATIC_CARCASA -> "🔵 Punto Físico / Carcasa Estática (Sin tiempo real - Consulta in situ)"
+                }
+
+                tvNombre?.text = charger.name
+                tvDireccion?.text = "${charger.address}\n$statusText • ${charger.pricePerKwh} • ${charger.powerKw}"
+
+                if (bottomSheet != null) {
+                    val behavior = BottomSheetBehavior.from(bottomSheet)
+                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                }
+                m.showInfoWindow()
+                true
+            }
+
+            map.overlays.add(marker)
+            activeMarkers.add(marker)
+        }
+
+        map.invalidate()
+    }
+
+    private fun createCustomPinIcon(colorInt: Int): Drawable {
+        val density = resources.displayMetrics.density
+        val size = (36 * density).toInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        paint.color = colorInt
+        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (3 * density), paint)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
+
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun createCustomUserPin(): Drawable {
+        val density = resources.displayMetrics.density
+        val size = (28 * density).toInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.parseColor("#1976D2")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (3 * density), paint)
+
+        paint.color = Color.parseColor("#1976D2")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - (6 * density), paint)
+
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun showNavigationChooser() {
+        val charger = selectedCharger
+        if (charger == null) {
+            Toast.makeText(this, "Selecciona un cargador en el mapa primero", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val options = arrayOf("Google Maps", "Waze")
+        val builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle("Elegir Navegador")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> openGoogleMapsNavigation(charger)
+                1 -> openWazeNavigation(charger)
+            }
+        }
+        builder.show()
+    }
+
+    private fun openGoogleMapsNavigation(charger: ChargerInfo) {
+        val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+        mapIntent.setPackage("com.google.android.apps.maps")
+        if (mapIntent.resolveActivity(packageManager) != null) {
+            startActivity(mapIntent)
+        } else {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}"))
+            startActivity(browserIntent)
+        }
+    }
+
+    private fun openWazeNavigation(charger: ChargerInfo) {
+        try {
+            val wazeUri = Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")
+            val wazeIntent = Intent(Intent.ACTION_VIEW, wazeUri)
+            startActivity(wazeIntent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Waze no está instalado en el dispositivo", Toast.LENGTH_SHORT).show()
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes"))
+            startActivity(browserIntent)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        map.onResume()
+        compassOverlay?.enableCompass()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        map.onPause()
+        compassOverlay?.disableCompass()
+        locationProvider?.stopLocationProvider()
+    }
+}
