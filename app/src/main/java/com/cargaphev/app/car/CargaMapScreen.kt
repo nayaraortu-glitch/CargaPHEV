@@ -4,7 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
-import androidx.car.app.model.HeaderAction
+import androidx.car.app.model.Action
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.PlaceListMapTemplate
 import androidx.car.app.model.Row
@@ -40,13 +40,12 @@ class CargaMapScreen(carContext: CarContext) : Screen(carContext) {
         // Retornamos la plantilla de mapa con lista lateral oficial de Android Auto
         return PlaceListMapTemplate.Builder()
             .setTitle("CargaPHEV - Estaciones")
-            .setHeaderAction(HeaderAction.APP_ICON)
+            .setHeaderAction(Action.APP_ICON)
             .setItemList(listBuilder.build())
             .build()
     }
 
     private fun abrirNavegacion(lat: Double, lng: Double, etiqueta: String) {
-        // Abre la navegación en la app predeterminada (Waze o Google Maps)
         val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng($etiqueta)")
         val intent = Intent(Intent.ACTION_VIEW, uri)
         carContext.startCarApp(intent)
