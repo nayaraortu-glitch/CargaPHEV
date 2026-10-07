@@ -28,19 +28,20 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
-        <!-- Servicio de Android Auto con la acción corregida -->
+        <!-- Servicio de Android Auto configurado con categoría POI -->
         <service
             android:name=".car.CargaCarAppService"
             android:exported="true">
             <intent-filter>
                 <action android:name="androidx.car.app.action.RENDER" />
-                <category android:name="androidx.car.app.category.NAVIGATION" />
+                <category android:name="androidx.car.app.category.POI" />
             </intent-filter>
         </service>
 
-       <meta-data
-    android:name="androidx.car.app.minCarAppApiLevel"
-    android:value="1" />
+        <!-- Versión mínima de la API de Coches compatible -->
+        <meta-data
+            android:name="androidx.car.app.minCarAppApiLevel"
+            android:value="1" />
 
     </application>
 
