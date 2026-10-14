@@ -661,3 +661,4 @@ class MainActivity : AppCompatActivity() {
         map.onPause()
         locationProvider?.stopLocationProvider()
     }
+}
