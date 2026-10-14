@@ -413,7 +413,7 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo("EVcharge - Mataró Parc", "Camí Ral de la Mercè, Mataró", 41.5450, 2.4312, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
             ChargerInfo("Punt Públic - Ajuntament de Mataró", "Plaça de l'Ajuntament, Mataró", 41.5391, 2.4445, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
             ChargerInfo("EVcharge - Argentona Centre", "Plaça Nova, Argentona", 41.5542, 2.4045, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - Vilassar de Mar", "Passeig del Mar, Vilassar de Mar", 41.5032, 2.3891, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
+            ChargerInfo("Punt Municipal - Vilassar de Mar", "Passeig del Mar, Vilassar de Mar", 41.5032, 2.3891, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
             
             // --- BARCELONA Y OTROS ENTORNOS ---
             ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM"),
