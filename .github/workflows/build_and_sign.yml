@@ -18,20 +18,16 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Dar permisos de ejecución a Gradle
-      run: chmod +x gradlew
-
     - name: Compilar APK de Release (sin firmar)
-      run: ./gradlew assembleRelease
+      run: gradle assembleRelease
 
     - name: Generar keystore temporal
       run: |
-        keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -passin pass:android -passout pass:android -dname "CN=Android, O=Android, C=US"
+        keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -passin pass:android -passout pass:android "CN=Android, O=Android, C=US"
 
     - name: Firmar el APK con apksigner
       run: |
         APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-        # Usar apksigner disponible en el entorno de Java/Android predeterminado
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks release.keystore --ks-pass pass:android --key-pass pass:android "$APK_PATH"
         cp "$APK_PATH" app-release-signed.apk
 
