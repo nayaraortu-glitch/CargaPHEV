@@ -7,9 +7,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Permiso de superficie obligatorio para Android Auto -->
-    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
-
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
@@ -25,26 +22,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Metadato obligatorio para que Android Auto descubra la app -->
-        <meta-data
-            android:name="com.google.android.gms.car.application"
-            android:resource="@xml/automotive_app_desc" />
-
-        <!-- Servicio de Android Auto configurado con categoría POI -->
-        <service
-            android:name=".car.CargaCarAppService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="androidx.car.app.action.RENDER" />
-                <category android:name="androidx.car.app.category.POI" />
-            </intent-filter>
-        </service>
-
-        <!-- Versión mínima de la API de Coches compatible -->
-        <meta-data
-            android:name="androidx.car.app.minCarAppApiLevel"
-            android:value="1" />
 
     </application>
 
