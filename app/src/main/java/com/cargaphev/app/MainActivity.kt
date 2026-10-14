@@ -65,14 +65,14 @@ class MainActivity : AppCompatActivity() {
         val address: String,
         val latitude: Double,
         val longitude: Double,
-        val isFree: Boolean,
-        val isType2: Boolean,
-        val totalSockets: Int,
-        var availableSockets: Int,
-        var status: AvailabilityStatus,
+        val isFree: Boolean = true,
+        val isType2: Boolean = true,
+        val totalSockets: Int = 2,
+        var availableSockets: Int = 2,
+        var status: AvailabilityStatus = AvailabilityStatus.STATIC_CARCASA,
         val powerKw: String = "22 kW",
-        val pricePerKwh: String = "Gratis / Red Pública",
-        val operatorName: String = "Red Pública",
+        val pricePerKwh: String = "Gratis",
+        val operatorName: String = "Red Publica",
         val officialAppPackage: String = "com.electromaps.app",
         var isFavorite: Boolean = false
     )
@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
             val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
             mapController.animateTo(center)
             mapController.setZoom(15.0)
-            Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Centrado en tu ubicacion", Toast.LENGTH_SHORT).show()
         }
 
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
@@ -152,7 +152,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(60, 60, 60, 60)
 
             addView(TextView(context).apply {
-                text = "⚡ CargaPHEV España & Catalunya"
+                text = "⚡ CargaPHEV Espana & Catalunya"
                 textSize = 24f
                 setTextColor(Color.parseColor("#1976D2"))
                 gravity = Gravity.CENTER
@@ -168,7 +168,7 @@ class MainActivity : AppCompatActivity() {
             })
 
             addView(TextView(context).apply {
-                text = "📖 GUÍA DE ESTADOS Y COLORES:"
+                text = "📖 GUIA DE ESTADOS Y COLORES:"
                 textSize = 13f
                 setTextColor(Color.parseColor("#333333"))
                 setTypeface(null, Typeface.BOLD)
@@ -177,10 +177,10 @@ class MainActivity : AppCompatActivity() {
 
             val legends = listOf(
                 "🟢 VERDE: Todas las tomas libres.",
-                "🟡 AMARILLO: Ocupación parcial.",
+                "🟡 AMARILLO: Ocupacion parcial.",
                 "🔴 ROJO: Todas las tomas ocupadas.",
                 "⚫ NEGRO: Fuera de servicio / Averiado.",
-                "🔵 AZUL: Punto físico verificado (Usa la App Oficial para ver estado en vivo)."
+                "🔵 AZUL: Punto fisico verificado (Usa la App Oficial para ver estado en vivo)."
             )
 
             for (legend in legends) {
@@ -276,7 +276,7 @@ class MainActivity : AppCompatActivity() {
         if (myLocationMarker == null) {
             myLocationMarker = Marker(map)
             myLocationMarker?.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            myLocationMarker?.title = "Tu coche (Ubicación actual)"
+            myLocationMarker?.title = "Tu coche (Ubicacion actual)"
             myLocationMarker?.icon = createCustomUserPin()
             map.overlays.add(myLocationMarker)
         }
@@ -286,7 +286,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadCataloniaOfficialChargers() {
         if (isRefreshing) {
-            Toast.makeText(this, "Actualización ya en curso...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Actualizacion ya en curso...", Toast.LENGTH_SHORT).show()
             return
         }
         isRefreshing = true
@@ -336,8 +336,6 @@ class MainActivity : AppCompatActivity() {
                             else -> "com.electromaps.app"
                         }
 
-                        val status = AvailabilityStatus.STATIC_CARCASA
-
                         if (lat != 0.0 && lon != 0.0) {
                             fetchedList.add(
                                 ChargerInfo(
@@ -346,10 +344,9 @@ class MainActivity : AppCompatActivity() {
                                     latitude = lat,
                                     longitude = lon,
                                     isFree = isFree,
-                                    isType2 = true,
                                     totalSockets = capacity,
                                     availableSockets = capacity,
-                                    status = status,
+                                    status = AvailabilityStatus.STATIC_CARCASA,
                                     powerKw = tags.optString("socket:type2:output", "22 kW"),
                                     pricePerKwh = if (isFree) "Gratis" else "De pago",
                                     operatorName = tags.optString("operator", "Red Publica"),
@@ -397,22 +394,22 @@ class MainActivity : AppCompatActivity() {
     private fun loadFallbackDirectly() {
         val fallback = listOf(
             // --- CANOVELLES ---
-            ChargerInfo("Ajuntament Canovelles - Plaza", "Plaza del Ayuntamiento, Canovelles", 41.6152, 2.2798, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Canovelles", "com.electromaps.app"),
-            ChargerInfo("EVcharge - Carretera Ribes", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
-            ChargerInfo("EVcharge - Pabellon Canovelles", "Paseo de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
-            ChargerInfo("Punt Municipal - Calle Pilar", "Calle Verge del Pilar, Canovelles", 41.6141, 2.2765, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
-            ChargerInfo("Ajuntament Canovelles - Calle Rec", "Calle del Rec, Canovelles", 41.6158, 2.2774, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
+            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaza del Ayuntamiento, Canovelles", latitude = 41.6152, longitude = 2.2798, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.6163, longitude = 2.2789, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Paseo de la Ribera, Canovelles", latitude = 41.6118, longitude = 2.2818, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Calle Verge del Pilar, Canovelles", latitude = 41.6141, longitude = 2.2765, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Ajuntament Canovelles - Calle Rec", address = "Calle del Rec, Canovelles", latitude = 41.6158, longitude = 2.2774, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
 
             // --- GRANOLLERS & VALLES ---
-            ChargerInfo("Estabanell - Calle Rec Granollers", "Calle del Rec 26, Granollers", 41.6082, 2.2885, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
-            ChargerInfo("Punt Municipal - Josep Umbert", "Calle Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
-            ChargerInfo("Estacio Publica - Porxada", "Plaza de la Porxada, Granollers", 41.6063, 2.2878, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
-            ChargerInfo("Recarga Rambla Granollers", "Rambla Josep Tarradellas, Granollers", 41.6050, 2.2872, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Red Publica", "com.electromaps.app"),
-            ChargerInfo("EVcharge - Eix Macia Sabadell", "Av. Francesc Macia, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
-            ChargerInfo("Estabanell - Mollet del Valles", "Av. Llibertat, Mollet del Valles", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
-            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estacio FGC Volpelleres, Sant Cugat", 41.4812, 2.0715, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
-            ChargerInfo("Ajuntament Terrassa - Rambla Egara", "Rambla Egara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Terrassa", "com.electromaps.app"),
-            ChargerInfo("Punt Carga Parc Valles", "Av. Textil, Terrassa", 41.5530, 2.0315, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Parc Valles", "com.electromaps.app"),
+            ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Calle del Rec 26, Granollers", latitude = 41.6082, longitude = 2.2885, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Calle Josep Umbert, Granollers", latitude = 41.6095, longitude = 2.2890, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaza de la Porxada, Granollers", latitude = 41.6063, longitude = 2.2878, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Recarga Rambla Granollers", address = "Rambla Josep Tarradellas, Granollers", latitude = 41.6050, longitude = 2.2872, operatorName = "Red Publica", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Eix Macia Sabadell", address = "Av. Francesc Macia, Sabadell", latitude = 41.5518, longitude = 2.0998, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Estabanell - Mollet del Valles", address = "Av. Llibertat, Mollet del Valles", latitude = 41.5398, longitude = 2.2132, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Sant Cugat Volpelleres", address = "Estacio FGC Volpelleres, Sant Cugat", latitude = 41.4812, longitude = 2.0715, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Ajuntament Terrassa - Rambla Egara", address = "Rambla Egara, Terrassa", latitude = 41.5621, longitude = 2.0084, operatorName = "Ajuntament de Terrassa", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Carga Parc Valles", address = "Av. Textil, Terrassa", latitude = 41.5530, longitude = 2.0315, totalSockets = 4, availableSockets = 4, operatorName = "Parc Valles", officialAppPackage = "com.electromaps.app"),
 
             // --- VIC & OSONA ---
-            ChargerInfo("Estabanell - Rambla Hospital Vic", "Rambla Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, Availa
+            ChargerInfo(name = "Estabanell - Rambla Hospital Vic", address = "Ramb
