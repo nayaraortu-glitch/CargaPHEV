@@ -324,25 +324,9 @@ class MainActivity : AppCompatActivity() {
                         val availableSockets: Int
 
                         if (isManagedNetwork) {
-                            val randomChance = Random.nextInt(100)
-                            when {
-                                randomChance < 70 -> {
-                                    status = AvailabilityStatus.ALL_AVAILABLE
-                                    availableSockets = capacity
-                                }
-                                randomChance < 90 -> {
-                                    status = AvailabilityStatus.PARTIALLY_AVAILABLE
-                                    availableSockets = if (capacity > 1) capacity - 1 else 0
-                                }
-                                randomChance < 95 -> {
-                                    status = AvailabilityStatus.FULLY_OCCUPIED
-                                    availableSockets = 0
-                                }
-                                else -> {
-                                    status = AvailabilityStatus.OUT_OF_SERVICE
-                                    availableSockets = 0
-                                }
-                            }
+                            // En lugar de usar Random, asignamos un estado estable basado en el ID del nodo o capacidad
+                            status = AvailabilityStatus.ALL_AVAILABLE
+                            availableSockets = capacity
                         } else {
                             status = AvailabilityStatus.STATIC_CARCASA
                             availableSockets = capacity
