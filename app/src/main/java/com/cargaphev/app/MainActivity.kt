@@ -107,10 +107,12 @@ class MainActivity : AppCompatActivity() {
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
+                Toast.init // (Opcional, ya lo manejamos dentro)
                 loadCataloniaOfficialChargers()
             }
         } else {
             btnLocation?.setOnLongClickListener {
+                Toast.init
                 loadCataloniaOfficialChargers()
                 true
             }
@@ -280,103 +282,97 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadCataloniaOfficialChargers() {
-        GlobalScope.launch(Dispatchers.IO) {
-            val fetchedList = mutableListOf<ChargerInfo>()
-            var success = false
-            try {
-                // Rango ampliado para cubrir la gran mayoría de áreas clave de Catalunya
-                val overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:20];" +
-                        "node[\"amenity\"=\"charging_station\"](40.80,0.50,42.40,3.20);" +
-                        "out%20body%20150;"
+    GlobalScope.launch(Dispatchers.IO) {
+        val fetchedList = mutableListOf<ChargerInfo>()
+        var success = false
+        try {
+            // URL oficial del dataset abierto de puntos de recarga o endpoint de la Generalitat / Overpass optimizado
+            val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
+                    "[out:json][timeout:25];" +
+                    "node[\"amenity\"=\"charging_station\"](40.80,0.50,42.40,3.20);" +
+                    "out%20body%20200;"
 
-                val connection = URL(overpassUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                connection.setRequestProperty("User-Agent", "CargaPHEV-AppCatalunya")
+            val connection = URL(apiUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 12000
+            connection.readTimeout = 12000
+            connection.setRequestProperty("User-Agent", "CargaPHEV-AppSmartphone")
+            connection.setRequestProperty("Cache-Control", "no-cache")
 
-                if (connection.responseCode == 200) {
-                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                    val root = JSONObject(responseText)
-                    val elements = root.optJSONArray("elements") ?: JSONArray()
+            if (connection.responseCode == 200) {
+                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(responseText)
+                val elements = root.optJSONArray("elements") ?: JSONArray()
 
-                    for (i in 0 until elements.length()) {
-                        val node = elements.getJSONObject(i)
-                        val lat = node.optDouble("lat", 0.0)
-                        val lon = node.optDouble("lon", 0.0)
-                        val tags = node.optJSONObject("tags") ?: JSONObject()
+                for (i in 0 until elements.length()) {
+                    val node = elements.getJSONObject(i)
+                    val lat = node.optDouble("lat", 0.0)
+                    val lon = node.optDouble("lon", 0.0)
+                    val tags = node.optJSONObject("tags") ?: JSONObject()
 
-                        val name = tags.optString("name", tags.optString("operator", "Punto Recarga Público"))
-                        val operator = tags.optString("operator", "Red General").lowercase()
-                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
-                        
-                        val isFree = operator.contains("ajuntament") || 
-                                     operator.contains("municipal") || 
-                                     operator.contains("estabanell") ||
-                                     tags.optString("fee", "") == "no"
+                    val name = tags.optString("name", tags.optString("operator", "Punto Recarga Público"))
+                    val operator = tags.optString("operator", "Red General").lowercase()
+                    val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+                    
+                    val isFree = operator.contains("ajuntament") || 
+                                 operator.contains("municipal") || 
+                                 operator.contains("estabanell") ||
+                                 tags.optString("fee", "") == "no"
 
-                        val isManagedNetwork = operator.contains("evcharge") || 
-                                               operator.contains("estabanell") || 
-                                               operator.contains("ajuntament") || 
-                                               operator.contains("endesa")
+                    // Si la fuente online ofrece datos de disponibilidad o tomas específicas, se mapean aquí.
+                    // Para puntos estándar sin telemetría pública en vivo, se marca como estado estático verificado de carcasa.
+                    val status = AvailabilityStatus.STATIC_CARCASA
+                    val availableSockets = capacity
 
-                        val status: AvailabilityStatus
-                        val availableSockets: Int
-
-                        if (isManagedNetwork) {
-                            // En lugar de usar Random, asignamos un estado estable basado en el ID del nodo o capacidad
-                            status = AvailabilityStatus.ALL_AVAILABLE
-                            availableSockets = capacity
-                        } else {
-                            status = AvailabilityStatus.STATIC_CARCASA
-                            availableSockets = capacity
-                        }
-
-                        if (lat != 0.0 && lon != 0.0) {
-                            fetchedList.add(
-                                ChargerInfo(
-                                    name = name,
-                                    address = "Operador: $operator",
-                                    latitude = lat,
-                                    longitude = lon,
-                                    isFree = isFree,
-                                    isType2 = true,
-                                    totalSockets = capacity,
-                                    availableSockets = availableSockets,
-                                    status = status,
-                                    powerKw = "22 kW",
-                                    pricePerKwh = if (isFree) "Gratis" else "De pago"
-                                )
+                    if (lat != 0.0 && lon != 0.0) {
+                        fetchedList.add(
+                            ChargerInfo(
+                                name = name,
+                                address = "Operador: $operator",
+                                latitude = lat,
+                                longitude = lon,
+                                isFree = isFree,
+                                isType2 = true,
+                                totalSockets = capacity,
+                                availableSockets = availableSockets,
+                                status = status,
+                                powerKw = tags.optString("socket:type2:output", "22 kW"),
+                                pricePerKwh = if (isFree) "Gratis" else "De pago"
                             )
-                        }
-                    }
-                    if (fetchedList.isNotEmpty()) {
-                        success = true
+                        )
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                if (fetchedList.isNotEmpty()) {
+                    success = true
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
-            withContext(Dispatchers.Main) {
-                if (success && fetchedList.isNotEmpty()) {
-                    for (newCharger in fetchedList) {
-                        val existing = allChargers.find { 
-                            Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
-                            Math.abs(it.longitude - newCharger.longitude) < 0.0002 
-                        }
-                        if (existing != null) {
-                            existing.status = newCharger.status
-                            existing.availableSockets = newCharger.availableSockets
-                        } else {
-                            allChargers.add(newCharger)
-                        }
+        withContext(Dispatchers.Main) {
+            if (success && fetchedList.isNotEmpty()) {
+                var addedCount = 0
+                for (newCharger in fetchedList) {
+                    val existing = allChargers.find { 
+                        Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
+                        Math.abs(it.longitude - newCharger.longitude) < 0.0002 
+                    }
+                    if (existing != null) {
+                        existing.status = newCharger.status
+                        existing.availableSockets = newCharger.availableSockets
+                    } else {
+                        allChargers.add(newCharger)
+                        addedCount++
                     }
                 }
                 updateMarkers()
+                Toast.makeText(this@MainActivity, "¡Actualizado! $addedCount nuevos puntos online cargados", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this@MainActivity, "No se pudieron actualizar los puntos (sin conexión)", Toast.LENGTH_SHORT).show()
             }
         }
     }
+}
 
     // BASE DE DATOS LOCAL AMPLIADA: Se muestra INSTANTÁNEAMENTE al abrir la app
     private fun loadFallbackDirectly() {
