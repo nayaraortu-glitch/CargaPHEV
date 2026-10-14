@@ -34,7 +34,7 @@ jobs:
 
       - name: Generar keystore temporal
         run: |
-          keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -passin pass:android -passout pass:android -dname "CN=Android, O=Android, C=US"
+          keytool -genkeypair -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android, O=Android, C=US"
 
       - name: Firmar el APK con apksigner
         run: |
