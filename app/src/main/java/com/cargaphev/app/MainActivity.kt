@@ -38,7 +38,6 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
@@ -51,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private var myLocationMarker: Marker? = null
     private var locationProvider: org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider? = null
     private var isFirstLocationUpdate = true
+    private var isRefreshing = false
 
     enum class AvailabilityStatus {
         ALL_AVAILABLE,      // Verde: Todas las tomas libres
@@ -71,7 +71,10 @@ class MainActivity : AppCompatActivity() {
         var availableSockets: Int,
         var status: AvailabilityStatus,
         val powerKw: String = "22 kW",
-        val pricePerKwh: String = "Gratis / Red Pública"
+        val pricePerKwh: String = "Gratis / Red Pública",
+        val operatorName: String = "Red Pública",
+        val officialAppPackage: String = "com.electromaps.app", // App por defecto recomendada
+        var isFavorite: Boolean = false
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(13.0)
 
-        val defaultCenter = GeoPoint(41.5463, 2.1086)
+        val defaultCenter = GeoPoint(41.5463, 2.1086) // Centro aproximado Vallès / Barcelona
         mapController.setCenter(defaultCenter)
 
         setupCompass()
@@ -107,12 +110,10 @@ class MainActivity : AppCompatActivity() {
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
-                Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
                 loadCataloniaOfficialChargers()
             }
         } else {
             btnLocation?.setOnLongClickListener {
-                Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
                 loadCataloniaOfficialChargers()
                 true
             }
@@ -120,20 +121,22 @@ class MainActivity : AppCompatActivity() {
 
         val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
         val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
+        val chipFavoritos: Chip? = findViewById(resources.getIdentifier("chipFavoritos", "id", packageName))
 
         chipGratuitos?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
         chipTipo2?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
+        chipFavoritos?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
 
         val btnNavegarId = resources.getIdentifier("btnNavegar", "id", packageName)
         if (btnNavegarId != 0) {
-            findViewById<View>(btnNavegarId)?.setOnClickListener { showNavigationChooser() }
+            findViewById<View>(btnNavegarId)?.setOnClickListener { showChargerActionMenu() }
         }
 
-        // 1. CARGA INSTANTÁNEA: Pinta el mapa inmediatamente con la base de datos local amplia
+        // 1. CARGA INSTANTÁNEA: Pinta el mapa inmediatamente con la base de datos local corregida
         loadFallbackDirectly()
         updateMarkers()
 
-        // 2. ACTUALIZACIÓN EN SEGUNDO PLANO: Busca puntos adicionales y estados en tiempo real
+        // 2. ACTUALIZACIÓN EN SEGUNDO PLANO
         loadCataloniaOfficialChargers()
     }
 
@@ -149,53 +152,53 @@ class MainActivity : AppCompatActivity() {
             setPadding(60, 60, 60, 60)
 
             addView(TextView(context).apply {
-                text = "⚡ CargaPHEV Catalunya"
-                textSize = 26f
+                text = "⚡ CargaPHEV España & Catalunya"
+                textSize = 24f
                 setTextColor(Color.parseColor("#1976D2"))
                 gravity = Gravity.CENTER
                 setTypeface(null, Typeface.BOLD)
             })
 
             addView(TextView(context).apply {
-                text = "Mapa Inteligente de Puntos de Recarga"
-                textSize = 15f
+                text = "Mapa Inteligente con Enlace a Apps Oficiales y Favoritos"
+                textSize = 14f
                 setTextColor(Color.parseColor("#555555"))
                 gravity = Gravity.CENTER
-                setPadding(0, 10, 0, 30)
+                setPadding(0, 10, 0, 25)
             })
 
             addView(TextView(context).apply {
                 text = "📖 GUÍA DE ESTADOS Y COLORES:"
-                textSize = 14f
+                textSize = 13f
                 setTextColor(Color.parseColor("#333333"))
                 setTypeface(null, Typeface.BOLD)
-                setPadding(0, 0, 0, 15)
+                setPadding(0, 0, 0, 10)
             })
 
             val legends = listOf(
                 "🟢 VERDE: Todas las tomas libres.",
-                "🟡 AMARILLO: Ocupación parcial (alguna libre).",
+                "🟡 AMARILLO: Ocupación parcial.",
                 "🔴 ROJO: Todas las tomas ocupadas.",
                 "⚫ NEGRO: Fuera de servicio / Averiado.",
-                "🔵 AZUL: Punto físico (Carcasa estática sin tiempo real)."
+                "🔵 AZUL: Punto físico verificado (Usa la App Oficial para ver estado en vivo)."
             )
 
             for (legend in legends) {
                 addView(TextView(context).apply {
                     text = legend
-                    textSize = 13f
+                    textSize = 12f
                     setTextColor(Color.parseColor("#444444"))
-                    setPadding(0, 6, 0, 6)
+                    setPadding(0, 4, 0, 4)
                 })
             }
 
             addView(TextView(context).apply {
                 text = "\n👉 Toca en cualquier lugar para comenzar"
-                textSize = 15f
+                textSize = 14f
                 setTextColor(Color.parseColor("#2E7D32"))
                 gravity = Gravity.CENTER
                 setTypeface(null, Typeface.BOLD)
-                setPadding(0, 40, 0, 0)
+                setPadding(0, 30, 0, 0)
             })
 
             setOnClickListener {
@@ -282,350 +285,132 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadCataloniaOfficialChargers() {
-    GlobalScope.launch(Dispatchers.IO) {
-        val fetchedList = mutableListOf<ChargerInfo>()
-        var success = false
-        try {
-            // URL oficial del dataset abierto de puntos de recarga o endpoint de la Generalitat / Overpass optimizado
-            val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
-                    "[out:json][timeout:25];" +
-                    "node[\"amenity\"=\"charging_station\"](40.80,0.50,42.40,3.20);" +
-                    "out%20body%20200;"
-
-            val connection = URL(apiUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = 12000
-            connection.readTimeout = 12000
-            connection.setRequestProperty("User-Agent", "CargaPHEV-AppSmartphone")
-            connection.setRequestProperty("Cache-Control", "no-cache")
-
-            if (connection.responseCode == 200) {
-                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                val root = JSONObject(responseText)
-                val elements = root.optJSONArray("elements") ?: JSONArray()
-
-                for (i in 0 until elements.length()) {
-                    val node = elements.getJSONObject(i)
-                    val lat = node.optDouble("lat", 0.0)
-                    val lon = node.optDouble("lon", 0.0)
-                    val tags = node.optJSONObject("tags") ?: JSONObject()
-
-                    val name = tags.optString("name", tags.optString("operator", "Punto Recarga Público"))
-                    val operator = tags.optString("operator", "Red General").lowercase()
-                    val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
-                    
-                    val isFree = operator.contains("ajuntament") || 
-                                 operator.contains("municipal") || 
-                                 operator.contains("estabanell") ||
-                                 tags.optString("fee", "") == "no"
-
-                    // Si la fuente online ofrece datos de disponibilidad o tomas específicas, se mapean aquí.
-                    // Para puntos estándar sin telemetría pública en vivo, se marca como estado estático verificado de carcasa.
-                    val status = AvailabilityStatus.STATIC_CARCASA
-                    val availableSockets = capacity
-
-                    if (lat != 0.0 && lon != 0.0) {
-                        fetchedList.add(
-                            ChargerInfo(
-                                name = name,
-                                address = "Operador: $operator",
-                                latitude = lat,
-                                longitude = lon,
-                                isFree = isFree,
-                                isType2 = true,
-                                totalSockets = capacity,
-                                availableSockets = availableSockets,
-                                status = status,
-                                powerKw = tags.optString("socket:type2:output", "22 kW"),
-                                pricePerKwh = if (isFree) "Gratis" else "De pago"
-                            )
-                        )
-                    }
-                }
-                if (fetchedList.isNotEmpty()) {
-                    success = true
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        if (isRefreshing) {
+            Toast.makeText(this, "Actualización ya en curso...", Toast.LENGTH_SHORT).show()
+            return
         }
+        isRefreshing = true
+        Toast.initSafe(this) // Usamos Toast normal
+        Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
 
-        withContext(Dispatchers.Main) {
-            if (success && fetchedList.isNotEmpty()) {
-                var addedCount = 0
-                for (newCharger in fetchedList) {
-                    val existing = allChargers.find { 
-                        Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
-                        Math.abs(it.longitude - newCharger.longitude) < 0.0002 
+        GlobalScope.launch(Dispatchers.IO) {
+            val fetchedList = mutableListOf<ChargerInfo>()
+            var success = false
+            var connection: HttpURLConnection? = null
+            try {
+                val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
+                        "[out:json][timeout:25];" +
+                        "node[\"amenity\"=\"charging_station\"](36.0,-9.3,43.8,4.5);" + // Ampliado a toda España
+                        "out%20body%20300;"
+
+                connection = URL(apiUrl).openConnection() as HttpURLConnection
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
+                connection.setRequestProperty("User-Agent", "CargaPHEV-AppSmartphone")
+                connection.setRequestProperty("Cache-Control", "no-cache")
+
+                if (connection.responseCode == 200) {
+                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                    val root = JSONObject(responseText)
+                    val elements = root.optJSONArray("elements") ?: JSONArray()
+
+                    for (i in 0 until elements.length()) {
+                        val node = elements.getJSONObject(i)
+                        val lat = node.optDouble("lat", 0.0)
+                        val lon = node.optDouble("lon", 0.0)
+                        val tags = node.optJSONObject("tags") ?: JSONObject()
+
+                        val name = tags.optString("name", tags.optString("operator", "Punto Recarga Público"))
+                        val operator = tags.optString("operator", "Red Pública").lowercase()
+                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
+                        
+                        val isFree = operator.contains("ajuntament") || 
+                                     operator.contains("municipal") || 
+                                     operator.contains("estabanell") ||
+                                     tags.optString("fee", "") == "no"
+
+                        val appPackage = when {
+                            operator.contains("bcn") || operator.contains("smou") || operator.contains("bsm") -> "cat.bcn.smou"
+                            operator.contains("iberdrola") -> "com.iberdrola.recargapublica"
+                            operator.contains("endesa") -> "com.enelx.juicypass"
+                            operator.contains("wenea") -> "com.wenea.evcharging"
+                            else -> "com.electromaps.app"
+                        }
+
+                        val status = AvailabilityStatus.STATIC_CARCASA
+
+                        if (lat != 0.0 && lon != 0.0) {
+                            fetchedList.add(
+                                ChargerInfo(
+                                    name = name,
+                                    address = "Operador: $operator",
+                                    latitude = lat,
+                                    longitude = lon,
+                                    isFree = isFree,
+                                    isType2 = true,
+                                    totalSockets = capacity,
+                                    availableSockets = capacity,
+                                    status = status,
+                                    powerKw = tags.optString("socket:type2:output", "22 kW"),
+                                    pricePerKwh = if (isFree) "Gratis" else "De pago",
+                                    operatorName = tags.optString("operator", "Red Pública"),
+                                    officialAppPackage = appPackage
+                                )
+                            )
+                        }
                     }
-                    if (existing != null) {
-                        existing.status = newCharger.status
-                        existing.availableSockets = newCharger.availableSockets
-                    } else {
-                        allChargers.add(newCharger)
-                        addedCount++
+                    if (fetchedList.isNotEmpty()) {
+                        success = true
                     }
                 }
-                updateMarkers()
-                Toast.makeText(this@MainActivity, "¡Actualizado! $addedCount nuevos puntos online cargados", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this@MainActivity, "No se pudieron actualizar los puntos (sin conexión)", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                connection?.disconnect()
+                isRefreshing = false
+            }
+
+            withContext(Dispatchers.Main) {
+                if (success && fetchedList.isNotEmpty()) {
+                    var addedCount = 0
+                    for (newCharger in fetchedList) {
+                        val existing = allChargers.find { 
+                            Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
+                            Math.abs(it.longitude - newCharger.longitude) < 0.0002 
+                        }
+                        if (existing != null) {
+                            existing.status = newCharger.status
+                            existing.availableSockets = newCharger.availableSockets
+                        } else {
+                            allChargers.add(newCharger)
+                            addedCount++
+                        }
+                    }
+                    updateMarkers()
+                    Toast.makeText(this@MainActivity, "¡Actualizado! $addedCount puntos nuevos en España", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "No se pudieron actualizar los puntos (sin conexión)", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
-}
 
- // BASE DE DATOS LOCAL AMPLIADA (Granollers, Canovelles y Vallès Oriental): Se muestra INSTANTÁNEAMENTE en AZUL al abrir la app
     private fun loadFallbackDirectly() {
         val fallback = listOf(
             // --- CANOVELLES ---
-            ChargerInfo("Ajuntament de Canovelles - Pl. Ajuntament", "Plaça de l'Ajuntament, Canovelles", 41.6152, 2.2798, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Ctra. de Ribes Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - C/ Verge del Pilar", "Carrer Verge del Pilar, Canovelles", 41.6141, 2.2765, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Ajuntament de Canovelles - C/ Rec", "Carrer del Rec, Canovelles", 41.6158, 2.2774, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Canovelles - Pl. Ajuntament", "Plaça de l'Ajuntament, Canovelles", 41.6152, 2.2798, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Canovelles", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Ctra. de Ribes Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Punt Municipal - C/ Verge del Pilar", "Carrer Verge del Pilar, Canovelles", 41.6141, 2.2765, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
+            ChargerInfo("Ajuntament de Canovelles - C/ Rec", "Carrer del Rec, Canovelles", 41.6158, 2.2774, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
 
-            // --- GRANOLLERS ---
-            ChargerInfo("Estabanell - C/ del Rec", "Carrer del Rec, 26, Granollers", 41.6082, 2.2885, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Passeig de la Plaça Major, Granollers", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Recarga Rambla Granollers", "Rambla d'en Josep Tarradellas, Granollers", 41.6050, 2.2872, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Eix Macià Sabadell", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres, Sant Cugat", 41.4812, 2.0715, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Carga Parc Vallès", "Av. Tèxtil, Terrassa", 41.5530, 2.0315, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-
-            // --- MOLLET DEL VALLÈS & ALREDEDORES ---
-            ChargerInfo("Estabanell - Av. de la Llibertat", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - Mercat Municipal Mollet", "Ctra. de Barcelona, Mollet del Vallès", 41.5435, 2.2110, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Parets del Vallès Ajuntament", "Plaça de la Vila, Parets del Vallès", 41.5712, 2.2355, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Públic - Montmeló Circuit", "Av. del Parc, Montmeló", 41.5582, 2.2561, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Lliçà d'Amunt Centre", "Ctra. de Caldes, Lliçà d'Amunt", 41.6045, 2.2270, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-
-            // --- VIC & OSONA ---
-            ChargerInfo("Estabanell - Rambla de l'Hospital", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - Sucre Vic", "Passeig de la Generalitat, Vic", 41.9245, 2.2482, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Vic Estació Autobusos", "Ctra. de Ribes, Vic", 41.9331, 2.2580, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Públic - Manlleu Pg. St. Joan", "Passeig de Sant Joan, Manlleu", 42.0012, 2.2855, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-
-            // --- MATARÓ & MARESME ---
-            ChargerInfo("Punt Municipal - Passeig Marítim Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Mataró Parc", "Camí Ral de la Mercè, Mataró", 41.5450, 2.4312, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Públic - Ajuntament de Mataró", "Plaça de l'Ajuntament, Mataró", 41.5391, 2.4445, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Argentona Centre", "Plaça Nova, Argentona", 41.5542, 2.4045, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - Vilassar de Mar", "Passeig del Mar, Vilassar de Mar", 41.5032, 2.3891, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            
-            // --- BARCELONA Y OTROS ENTORNOS ---
-            ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM"),
-            ChargerInfo("B:SM - Sagrada Família", "C/ Mallorca, Barcelona", 41.4036, 2.1744, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM"),
-            ChargerInfo("Punt Recarga Glòries", "Av. Diagonal, Barcelona", 41.4025, 2.1895, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Cornellà Centre", "Av. del Parc, Cornellà", 41.3578, 2.0712, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Recarga Castelldefels", "Av. de la Platja, Castelldefels", 41.2685, 1.9805, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Estabanell - Vic Central", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Punt Recarga Manresa", "Passeig Pere III, Manresa", 41.7265, 1.8260, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Ajuntament de Girona - Devesa", "Passeig de la Devesa, Girona", 41.9852, 2.8185, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
-        )
-        
-        for (item in fallback) {
-            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 && Math.abs(it.longitude - item.longitude) < 0.0001 }) {
-                allChargers.add(item)
-            }
-        }
-    }
-    
-    private fun updateMarkers() {
-        val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
-        val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
-
-        val onlyFree = chipGratuitos?.isChecked ?: false
-        val onlyType2 = chipTipo2?.isChecked ?: false
-
-        for (marker in activeMarkers) {
-            map.overlays.remove(marker)
-        }
-        activeMarkers.clear()
-
-        val bottomSheet: View? = findViewById(R.id.bottomSheet)
-        val tvNombre: TextView? = findViewById(R.id.tvNombreEstacion)
-        val tvDireccion: TextView? = findViewById(R.id.tvDireccion)
-
-        for (charger in allChargers) {
-            if (onlyFree && !charger.isFree) continue
-            if (onlyType2 && !charger.isType2) continue
-
-            val marker = Marker(map)
-            marker.position = GeoPoint(charger.latitude, charger.longitude)
-            marker.title = charger.name
-
-            val markerColor = when (charger.status) {
-                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")       // Verde
-                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300") // Amarillo
-                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")     // Rojo
-                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#212121")     // Negro
-                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")     // Azul
-            }
-
-            marker.icon = createCustomPinIcon(markerColor)
-            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-
-            marker.setOnMarkerClickListener { m, _ ->
-                selectedCharger = charger
-
-                val statusText = when (charger.status) {
-                    AvailabilityStatus.ALL_AVAILABLE -> "🟢 Disponible (${charger.availableSockets}/${charger.totalSockets} tomas libres)"
-                    AvailabilityStatus.PARTIALLY_AVAILABLE -> "🟡 Ocupación parcial (${charger.availableSockets}/${charger.totalSockets} libres)"
-                    AvailabilityStatus.FULLY_OCCUPIED -> "🔴 Completo / Ocupado (0/${charger.totalSockets} libres)"
-                    AvailabilityStatus.OUT_OF_SERVICE -> "⚫ Fuera de servicio / Averiado"
-                    AvailabilityStatus.STATIC_CARCASA -> "🔵 Punto Físico / Carcasa Estática (Sin tiempo real - Consulta in situ)"
-                }
-
-                tvNombre?.text = charger.name
-                tvDireccion?.text = "${charger.address}\n$statusText • ${charger.pricePerKwh} • ${charger.powerKw}"
-
-                if (bottomSheet != null) {
-                    val behavior = BottomSheetBehavior.from(bottomSheet)
-                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                }
-                m.showInfoWindow()
-                true
-            }
-
-            map.overlays.add(marker)
-            activeMarkers.add(marker)
-        }
-
-        map.invalidate()
-    }
-
-    private fun createCustomPinIcon(colorInt: Int): Drawable {
-        val density = resources.displayMetrics.density
-        val width = (42 * density).toInt()
-        val height = (50 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        paint.color = colorInt
-
-        val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
-        canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
-
-        val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
-        canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3 * density
-        val path = Path()
-        path.moveTo(28 * density, 26 * density)
-        path.lineTo(34 * density, 26 * density)
-        path.lineTo(34 * density, 16 * density)
-        canvas.drawPath(path, paint)
-
-        paint.style = Paint.Style.FILL
-        val plugRect = RectF(30 * density, 8 * density, 38 * density, 16 * density)
-        canvas.drawRoundRect(plugRect, 2 * density, 2 * density, paint)
-        canvas.drawRect(32 * density, 3 * density, 34 * density, 8 * density, paint)
-        canvas.drawRect(36 * density, 3 * density, 38 * density, 8 * density, paint)
-
-        paint.color = Color.WHITE
-        paint.textSize = 12 * density
-        paint.typeface = Typeface.DEFAULT_BOLD
-        paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("E", 18 * density, 21 * density, paint)
-        canvas.drawText("V", 18 * density, 36 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
-    }
-
-    private fun createCustomUserPin(): Drawable {
-        val density = resources.displayMetrics.density
-        val width = (36 * density).toInt()
-        val height = (56 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
-        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.parseColor("#212121")
-        paint.strokeWidth = 1.8f * density
-        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
-
-        paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#333333")
-        canvas.drawRoundRect(RectF(2 * density, 18 * density, 6 * density, 24 * density), 2 * density, 2 * density, paint)
-        canvas.drawRoundRect(RectF(30 * density, 18 * density, 34 * density, 24 * density), 2 * density, 2 * density, paint)
-
-        paint.color = Color.parseColor("#1A1A1A")
-        val windshieldRect = RectF(10 * density, 14 * density, 26 * density, 24 * density)
-        canvas.drawRoundRect(windshieldRect, 4 * density, 4 * density, paint)
-
-        val roofRect = RectF(9 * density, 22 * density, 27 * density, 44 * density)
-        canvas.drawRoundRect(roofRect, 3 * density, 3 * density, paint)
-
-        paint.color = Color.parseColor("#D32F2F")
-        canvas.drawRect(8 * density, 49 * density, 13 * density, 51 * density, paint)
-        canvas.drawRect(23 * density, 49 * density, 28 * density, 51 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
-    }
-
-    private fun showNavigationChooser() {
-        val charger = selectedCharger
-        if (charger == null) {
-            Toast.makeText(this, "Selecciona un cargador en el mapa primero", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val options = arrayOf("Google Maps", "Waze")
-        val builder = android.app.AlertDialog.Builder(this)
-        builder.setTitle("Elegir Navegador")
-        builder.setItems(options) { _, which ->
-            when (which) {
-                0 -> openGoogleMapsNavigation(charger)
-                1 -> openWazeNavigation(charger)
-            }
-        }
-        builder.show()
-    }
-
-    private fun openGoogleMapsNavigation(charger: ChargerInfo) {
-        val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
-        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-        mapIntent.setPackage("com.google.android.apps.maps")
-        if (mapIntent.resolveActivity(packageManager) != null) {
-            startActivity(mapIntent)
-        } else {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}"))
-            startActivity(browserIntent)
-        }
-    }
-
-    private fun openWazeNavigation(charger: ChargerInfo) {
-        try {
-            val wazeUri = Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")
-            val wazeIntent = Intent(Intent.ACTION_VIEW, wazeUri)
-            startActivity(wazeIntent)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Waze no está instalado en el dispositivo", Toast.LENGTH_SHORT).show()
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes"))
-            startActivity(browserIntent)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        map.onResume()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        map.onPause()
-        locationProvider?.stopLocationProvider()
-    }
-}
+            // --- GRANOLLERS & VALLÈS (Coordenadas Reales Corregidas) ---
+            ChargerInfo("Estabanell - C/ del Rec Granollers", "Carrer del Rec, 26, Granollers", 41.6082, 2.2885, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
+            ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
+            ChargerInfo("Estació Pública - Pl. de la Porxada", "Plaça de la Porxada, Granollers", 41.6063, 2.2878, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
+            ChargerInfo("Recarga Rambla Granollers", "Rambla d'en Josep Tarradellas, Granollers", 41.6050, 2.2872, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Red Pública", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Eix Macià Sabadell", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres, Sant Cugat", 41.4812, 2.0715, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Terrassa", "com.electromaps.app"),
+            ChargerInfo("Punt Carga Parc Vallès
