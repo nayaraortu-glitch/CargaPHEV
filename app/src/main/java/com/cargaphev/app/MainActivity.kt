@@ -107,12 +107,12 @@ class MainActivity : AppCompatActivity() {
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
-                Toast.init // (Opcional, ya lo manejamos dentro)
+                Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
                 loadCataloniaOfficialChargers()
             }
         } else {
             btnLocation?.setOnLongClickListener {
-                Toast.init
+                Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
                 loadCataloniaOfficialChargers()
                 true
             }
