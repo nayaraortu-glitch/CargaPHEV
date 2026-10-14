@@ -411,5 +411,253 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo(name = "Ajuntament Terrassa - Rambla Egara", address = "Rambla Egara, Terrassa", latitude = 41.5621, longitude = 2.0084, operatorName = "Ajuntament de Terrassa", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "Punt Carga Parc Valles", address = "Av. Textil, Terrassa", latitude = 41.5530, longitude = 2.0315, totalSockets = 4, availableSockets = 4, operatorName = "Parc Valles", officialAppPackage = "com.electromaps.app"),
 
-            // --- VIC & OSONA ---
-            ChargerInfo(name = "Estabanell - Rambla Hospital Vic", address = "Ramb
+             // --- VIC & OSONA ---
+            ChargerInfo(name = "Estabanell - Rambla Hospital Vic", address = "Rambla Hospital, Vic", latitude = 41.9298, longitude = 2.2530, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Municipal - Sucre Vic", address = "Paseo Generalitat, Vic", latitude = 41.9245, longitude = 2.2482, operatorName = "Ajuntament de Vic", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Vic Estacion Autobuses", address = "Ctra. de Ribes, Vic", latitude = 41.9331, longitude = 2.2580, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Public - Manlleu", address = "Paseo Sant Joan, Manlleu", latitude = 42.0012, longitude = 2.2855, operatorName = "Ajuntament de Manlleu", officialAppPackage = "com.electromaps.app"),
+
+            // --- MATARO & MARESME ---
+            ChargerInfo(name = "Punt Municipal - Paseo Maritimo Mataro", address = "Paseo Maritimo, Mataro", latitude = 41.5332, longitude = 2.4450, operatorName = "Ajuntament de Mataro", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Mataro Parc", address = "Cami Ral Merce, Mataro", latitude = 41.5450, longitude = 2.4312, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Public - Ayuntamiento Mataro", address = "Plaza Ayuntamiento, Mataro", latitude = 41.5391, longitude = 2.4445, operatorName = "Ajuntament de Mataro", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Argentona Centre", address = "Plaza Nova, Argentona", latitude = 41.5542, longitude = 2.4045, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Municipal - Vilassar de Mar", address = "Paseo del Mar, Vilassar de Mar", latitude = 41.5032, longitude = 2.3891, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
+
+            // --- BARCELONA Y OTROS ---
+            ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaza Catalunya, Barcelona", latitude = 41.3870, longitude = 2.1700, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smou"),
+            ChargerInfo(name = "BSM - Sagrada Familia", address = "Calle Mallorca, Barcelona", latitude = 41.4036, longitude = 2.1744, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smou"),
+            ChargerInfo(name = "Punt Recarga Glorias", address = "Av. Diagonal, Barcelona", latitude = 41.4025, longitude = 2.1895, operatorName = "Ajuntament de Barcelona", officialAppPackage = "cat.bcn.smou"),
+            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornella", latitude = 41.3578, longitude = 2.0712, operatorName = "EVcharge", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Recarga Castelldefels", address = "Av. de la Platja, Castelldefels", latitude = 41.2685, longitude = 1.9805, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Recarga Manresa", address = "Paseo Pere III, Manresa", latitude = 41.7265, longitude = 1.8260, operatorName = "Ajuntament de Manresa", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Ajuntament Girona - Devesa", address = "Paseo de la Devesa, Girona", latitude = 41.9852, longitude = 2.8185, operatorName = "Ajuntament de Girona", officialAppPackage = "com.electromaps.app")
+        )
+
+        for (item in fallback) {
+            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 && Math.abs(it.longitude - item.longitude) < 0.0001 }) {
+                allChargers.add(item)
+            }
+        }
+    }
+
+    private fun updateMarkers() {
+        val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
+        val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
+        val chipFavoritos: Chip? = findViewById(resources.getIdentifier("chipFavoritos", "id", packageName))
+
+        val onlyFree = chipGratuitos?.isChecked ?: false
+        val onlyType2 = chipTipo2?.isChecked ?: false
+        val onlyFavorites = chipFavoritos?.isChecked ?: false
+
+        for (marker in activeMarkers) {
+            map.overlays.remove(marker)
+        }
+        activeMarkers.clear()
+
+        val bottomSheet: View? = findViewById(R.id.bottomSheet)
+        val tvNombre: TextView? = findViewById(R.id.tvNombreEstacion)
+        val tvDireccion: TextView? = findViewById(R.id.tvDireccion)
+
+        for (charger in allChargers) {
+            if (onlyFree && !charger.isFree) continue
+            if (onlyType2 && !charger.isType2) continue
+            if (onlyFavorites && !charger.isFavorite) continue
+
+            val marker = Marker(map)
+            marker.position = GeoPoint(charger.latitude, charger.longitude)
+            marker.title = charger.name
+
+            val markerColor = when (charger.status) {
+                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")       // Verde
+                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300") // Amarillo
+                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")     // Rojo
+                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#212121")     // Negro
+                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")     // Azul
+            }
+
+            marker.icon = createCustomPinIcon(markerColor)
+            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+
+            marker.setOnMarkerClickListener { m, _ ->
+                selectedCharger = charger
+
+                val favIcon = if (charger.isFavorite) "Favorito [Favorito]" else "Anadir a Favoritos"
+                val statusText = "Punto Fisico / Carcasa Estatica (Ver en App Oficial)"
+
+                tvNombre?.text = "${charger.name} ${if (charger.isFavorite) "Favorito" else ""}"
+                tvDireccion?.text = "Operador: ${charger.operatorName}\n${charger.address}\n$statusText\n${charger.pricePerKwh} - ${charger.powerKw}\n\n$favIcon"
+
+                if (bottomSheet != null) {
+                    val behavior = BottomSheetBehavior.from(bottomSheet)
+                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                }
+                m.showInfoWindow()
+                true
+            }
+
+            map.overlays.add(marker)
+            activeMarkers.add(marker)
+        }
+
+        map.invalidate()
+    }
+
+    private fun showChargerActionMenu() {
+        val charger = selectedCharger
+        if (charger == null) {
+            Toast.makeText(this, "Selecciona un cargador en el mapa primero", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val favText = if (charger.isFavorite) "Quitar de Favoritos" else "Anadir a Favoritos"
+        val options = arrayOf("Navegar con Google Maps", "Navegar con Waze", "Abrir App Oficial del Operador", favText)
+        
+        val builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle(charger.name)
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> openGoogleMapsNavigation(charger)
+                1 -> openWazeNavigation(charger)
+                2 -> openOfficialApp(charger.officialAppPackage)
+                3 -> toggleFavorite(charger)
+            }
+        }
+        builder.show()
+    }
+
+    private fun toggleFavorite(charger: ChargerInfo) {
+        charger.isFavorite = !charger.isFavorite
+        val msg = if (charger.isFavorite) "Anadido a favoritos" else "Eliminado de favoritos"
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        updateMarkers()
+    }
+
+    private fun openOfficialApp(packageName: String) {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                startActivity(intent)
+            } else {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
+                } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")))
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo abrir la aplicacion oficial", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openGoogleMapsNavigation(charger: ChargerInfo) {
+        val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+        mapIntent.setPackage("com.google.android.apps.maps")
+        if (mapIntent.resolveActivity(packageManager) != null) {
+            startActivity(mapIntent)
+        } else {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}"))
+            startActivity(browserIntent)
+        }
+    }
+
+    private fun openWazeNavigation(charger: ChargerInfo) {
+        try {
+            val wazeUri = Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")
+            val wazeIntent = Intent(Intent.ACTION_VIEW, wazeUri)
+            startActivity(wazeIntent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Waze no esta instalado", Toast.LENGTH_SHORT).show()
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes"))
+            startActivity(browserIntent)
+        }
+    }
+
+    private fun createCustomPinIcon(colorInt: Int): Drawable {
+        val density = resources.displayMetrics.density
+        val width = (42 * density).toInt()
+        val height = (50 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = colorInt
+
+        val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
+        canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
+
+        val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
+        canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 3 * density
+        val path = Path()
+        path.moveTo(28 * density, 26 * density)
+        path.lineTo(34 * density, 26 * density)
+        path.lineTo(34 * density, 16 * density)
+        canvas.drawPath(path, paint)
+
+        paint.style = Paint.Style.FILL
+        val plugRect = RectF(30 * density, 8 * density, 38 * density, 16 * density)
+        canvas.drawRoundRect(plugRect, 2 * density, 2 * density, paint)
+        canvas.drawRect(32 * density, 3 * density, 34 * density, 8 * density, paint)
+        canvas.drawRect(36 * density, 3 * density, 38 * density, 8 * density, paint)
+
+        paint.color = Color.WHITE
+        paint.textSize = 12 * density
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText("E", 18 * density, 21 * density, paint)
+        canvas.drawText("V", 18 * density, 36 * density, paint)
+
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun createCustomUserPin(): Drawable {
+        val density = resources.displayMetrics.density
+        val width = (36 * density).toInt()
+        val height = (56 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
+        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#212121")
+        paint.strokeWidth = 1.8f * density
+        canvas.drawRoundRect(bodyRect, 10 * density, 12 * density, paint)
+
+        paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#333333")
+        canvas.drawRoundRect(RectF(2 * density, 18 * density, 6 * density, 24 * density), 2 * density, 2 * density, paint)
+        canvas.drawRoundRect(RectF(30 * density, 18 * density, 34 * density, 24 * density), 2 * density, 2 * density, paint)
+
+        paint.color = Color.parseColor("#1A1A1A")
+        val windshieldRect = RectF(10 * density, 14 * density, 26 * density, 24 * density)
+        canvas.drawRoundRect(windshieldRect, 4 * density, 4 * density, paint)
+
+        val roofRect = RectF(9 * density, 22 * density, 27 * density, 44 * density)
+        canvas.drawRoundRect(roofRect, 3 * density, 3 * density, paint)
+
+        paint.color = Color.parseColor("#D32F2F")
+        canvas.drawRect(8 * density, 49 * density, 13 * density, 51 * density, paint)
+        canvas.drawRect(23 * density, 49 * density, 28 * density, 51 * density, paint)
+
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        map.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        map.onPause()
+        locationProvider?.stopLocationProvider()
+    }
