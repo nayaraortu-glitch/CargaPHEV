@@ -374,48 +374,66 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-    // BASE DE DATOS LOCAL AMPLIADA: Se muestra INSTANTÁNEAMENTE al abrir la app
+ // BASE DE DATOS LOCAL AMPLIADA (Granollers, Canovelles y Vallès Oriental): Se muestra INSTANTÁNEAMENTE en AZUL al abrir la app
     private fun loadFallbackDirectly() {
         val fallback = listOf(
-            // Vallès Occidental & Oriental
-            ChargerInfo("EVcharge - Eix Macià", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - CAP Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera", 41.6118, 2.2818, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis"),
-            ChargerInfo("Punt Municipal - C/ Josep Umbert", "Granollers", 41.6095, 2.2890, true, true, 2, 0, AvailabilityStatus.OUT_OF_SERVICE, "22 kW", "Gratis"),
-            ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Sabadell Centre", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Recarga Rambla (Carcasa Estática)", "Rambla de Sabadell", 41.5475, 2.1051, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
-            ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Punt Carga Parc Vallès", "Av. Tèxtil, Terrassa", 41.5530, 2.0315, true, true, 4, 3, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres", 41.4812, 2.0715, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
+            // --- CANOVELLES ---
+            ChargerInfo("Ajuntament de Canovelles - Pl. Ajuntament", "Plaça de l'Ajuntament, Canovelles", 41.6152, 2.2798, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Ctra. de Ribes Canovelles", "Ctra. de Ribes, Canovelles", 41.6163, 2.2789, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Pabellón Canovelles", "Passeig de la Ribera, Canovelles", 41.6118, 2.2818, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal - C/ Verge del Pilar", "Carrer Verge del Pilar, Canovelles", 41.6141, 2.2765, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Canovelles - C/ Rec", "Carrer del Rec, Canovelles", 41.6158, 2.2774, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
 
-            // Barcelona Capital
-            ChargerInfo("Endesa X - Passeig de Gràcia", "Passeig de Gràcia, Barcelona", 41.3921, 2.1649, false, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "De pago"),
-            ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 3, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis / B:SM"),
-            ChargerInfo("B:SM - Sagrada Família", "C/ Mallorca, Barcelona", 41.4036, 2.1744, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis / B:SM"),
-            ChargerInfo("Punt Recarga Glòries", "Av. Diagonal, Barcelona", 41.4025, 2.1895, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Recarga Sants Estació", "Plaça dels Països Catalans", 41.3808, 2.1412, false, true, 4, 2, AvailabilityStatus.PARTIALLY_AVAILABLE, "50 kW", "De pago"),
+            // --- GRANOLLERS ---
+            ChargerInfo("Estabanell - C/ del Rec", "Carrer del Rec, 26, Granollers", 41.6082, 2.2885, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Estació Pública - Passeig de la Plaça Major", "Passeig de la Plaça Major, Granollers", 41.5432, 2.1093, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Recarga Rambla Granollers", "Rambla d'en Josep Tarradellas, Granollers", 41.6050, 2.2872, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Eix Macià Sabadell", "Av. de Francesc Macià, Sabadell", 41.5518, 2.0998, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres, Sant Cugat", 41.4812, 2.0715, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Carga Parc Vallès", "Av. Tèxtil, Terrassa", 41.5530, 2.0315, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
 
-            // Maresme & Baix Llobregat
-            ChargerInfo("Punt Municipal Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("EVcharge - Cornellà Centre", "Av. del Parc, Cornellà", 41.3578, 2.0712, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Punt Recarga Castelldefels", "Av. de la Platja", 41.2685, 1.9805, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
+            // --- MOLLET DEL VALLÈS & ALREDEDORES ---
+            ChargerInfo("Estabanell - Av. de la Llibertat", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal - Mercat Municipal Mollet", "Ctra. de Barcelona, Mollet del Vallès", 41.5435, 2.2110, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Parets del Vallès Ajuntament", "Plaça de la Vila, Parets del Vallès", 41.5712, 2.2355, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Públic - Montmeló Circuit", "Av. del Parc, Montmeló", 41.5582, 2.2561, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Lliçà d'Amunt Centre", "Ctra. de Caldes, Lliçà d'Amunt", 41.6045, 2.2270, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
 
-            // Catalunya Central, Girona, Lleida & Tarragona
-            ChargerInfo("Estabanell - Vic Central", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Punt Recarga Manresa", "Passeig Pere III, Manresa", 41.7265, 1.8260, true, true, 2, 1, AvailabilityStatus.PARTIALLY_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Ajuntament de Girona - Devesa", "Passeig de la Devesa, Girona", 41.9852, 2.8185, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis"),
-            ChargerInfo("Recarga Tarragona Imperial", "Plaça Imperial Tàrraco", 41.1172, 1.2425, true, true, 2, 0, AvailabilityStatus.FULLY_OCCUPIED, "22 kW", "Gratis"),
-            ChargerInfo("Punt Recarga Lleida Ricard Viñes", "Plaça Ricard Viñes, Lleida", 41.6198, 0.6212, true, true, 2, 2, AvailabilityStatus.ALL_AVAILABLE, "22 kW", "Gratis")
+            // --- VIC & OSONA ---
+            ChargerInfo("Estabanell - Rambla de l'Hospital", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal - Sucre Vic", "Passeig de la Generalitat, Vic", 41.9245, 2.2482, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Vic Estació Autobusos", "Ctra. de Ribes, Vic", 41.9331, 2.2580, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Públic - Manlleu Pg. St. Joan", "Passeig de Sant Joan, Manlleu", 42.0012, 2.2855, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+
+            // --- MATARÓ & MARESME ---
+            ChargerInfo("Punt Municipal - Passeig Marítim Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Mataró Parc", "Camí Ral de la Mercè, Mataró", 41.5450, 2.4312, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Públic - Ajuntament de Mataró", "Plaça de l'Ajuntament, Mataró", 41.5391, 2.4445, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Argentona Centre", "Plaça Nova, Argentona", 41.5542, 2.4045, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal - Vilassar de Mar", "Passeig del Mar, Vilassar de Mar", 41.5032, 2.3891, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
+            
+            // --- BARCELONA Y OTROS ENTORNOS ---
+            ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM"),
+            ChargerInfo("B:SM - Sagrada Família", "C/ Mallorca, Barcelona", 41.4036, 2.1744, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM"),
+            ChargerInfo("Punt Recarga Glòries", "Av. Diagonal, Barcelona", 41.4025, 2.1895, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Municipal Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("EVcharge - Cornellà Centre", "Av. del Parc, Cornellà", 41.3578, 2.0712, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Recarga Castelldefels", "Av. de la Platja, Castelldefels", 41.2685, 1.9805, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Estabanell - Vic Central", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Punt Recarga Manresa", "Passeig Pere III, Manresa", 41.7265, 1.8260, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis"),
+            ChargerInfo("Ajuntament de Girona - Devesa", "Passeig de la Devesa, Girona", 41.9852, 2.8185, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis")
         )
         
         for (item in fallback) {
-            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 }) {
+            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 && Math.abs(it.longitude - item.longitude) < 0.0001 }) {
                 allChargers.add(item)
             }
         }
     }
-
+    
     private fun updateMarkers() {
         val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
         val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
