@@ -73,7 +73,7 @@ class MainActivity : AppCompatActivity() {
         val powerKw: String = "22 kW",
         val pricePerKwh: String = "Gratis / Red Pública",
         val operatorName: String = "Red Pública",
-        val officialAppPackage: String = "com.electromaps.app", // App por defecto recomendada
+        val officialAppPackage: String = "com.electromaps.app",
         var isFavorite: Boolean = false
     )
 
@@ -93,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(13.0)
 
-        val defaultCenter = GeoPoint(41.5463, 2.1086) // Centro aproximado Vallès / Barcelona
+        val defaultCenter = GeoPoint(41.5463, 2.1086)
         mapController.setCenter(defaultCenter)
 
         setupCompass()
@@ -132,7 +132,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showChargerActionMenu() }
         }
 
-        // 1. CARGA INSTANTÁNEA: Pinta el mapa inmediatamente con la base de datos local corregida
+        // 1. CARGA INSTANTÁNEA LOCAL
         loadFallbackDirectly()
         updateMarkers()
 
@@ -290,7 +290,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
         isRefreshing = true
-        Toast.initSafe(this) // Usamos Toast normal
         Toast.makeText(this, "Actualizando cargadores online...", Toast.LENGTH_SHORT).show()
 
         GlobalScope.launch(Dispatchers.IO) {
@@ -300,7 +299,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
                         "[out:json][timeout:25];" +
-                        "node[\"amenity\"=\"charging_station\"](36.0,-9.3,43.8,4.5);" + // Ampliado a toda España
+                        "node[\"amenity\"=\"charging_station\"](36.0,-9.3,43.8,4.5);" +
                         "out%20body%20300;"
 
                 connection = URL(apiUrl).openConnection() as HttpURLConnection
@@ -404,7 +403,7 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo("Punt Municipal - C/ Verge del Pilar", "Carrer Verge del Pilar, Canovelles", 41.6141, 2.2765, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
             ChargerInfo("Ajuntament de Canovelles - C/ Rec", "Carrer del Rec, Canovelles", 41.6158, 2.2774, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
 
-            // --- GRANOLLERS & VALLÈS (Coordenadas Reales Corregidas) ---
+            // --- GRANOLLERS & VALLÈS ---
             ChargerInfo("Estabanell - C/ del Rec Granollers", "Carrer del Rec, 26, Granollers", 41.6082, 2.2885, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
             ChargerInfo("Punt Municipal - C/ Josep Umbert", "Carrer de Josep Umbert, Granollers", 41.6095, 2.2890, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
             ChargerInfo("Estació Pública - Pl. de la Porxada", "Plaça de la Porxada, Granollers", 41.6063, 2.2878, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Granollers", "com.electromaps.app"),
@@ -413,4 +412,26 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo("Estabanell - Mollet del Vallès", "Av. de la Llibertat, Mollet del Vallès", 41.5398, 2.2132, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
             ChargerInfo("EVcharge - Sant Cugat Volpelleres", "Estació FGC Volpelleres, Sant Cugat", 41.4812, 2.0715, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
             ChargerInfo("Ajuntament de Terrassa - Rambla d'Ègara", "Rambla d'Ègara, Terrassa", 41.5621, 2.0084, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Terrassa", "com.electromaps.app"),
-            ChargerInfo("Punt Carga Parc Vallès
+            ChargerInfo("Punt Carga Parc Vallès", "Av. Tèxtil, Terrassa", 41.5530, 2.0315, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Parc Vallès", "com.electromaps.app"),
+
+            // --- VIC & OSONA ---
+            ChargerInfo("Estabanell - Rambla de l'Hospital", "Rambla de l'Hospital, Vic", 41.9298, 2.2530, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Estabanell", "com.electromaps.app"),
+            ChargerInfo("Punt Municipal - Sucre Vic", "Passeig de la Generalitat, Vic", 41.9245, 2.2482, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Vic", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Vic Estació Autobusos", "Ctra. de Ribes, Vic", 41.9331, 2.2580, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Punt Públic - Manlleu Pg. St. Joan", "Passeig de Sant Joan, Manlleu", 42.0012, 2.2855, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Manlleu", "com.electromaps.app"),
+
+            // --- MATARÓ & MARESME ---
+            ChargerInfo("Punt Municipal - Passeig Marítim Mataró", "Passeig Marítim, Mataró", 41.5332, 2.4450, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Mataró", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Mataró Parc", "Camí Ral de la Mercè, Mataró", 41.5450, 2.4312, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Punt Públic - Ajuntament de Mataró", "Plaça de l'Ajuntament, Mataró", 41.5391, 2.4445, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Mataró", "com.electromaps.app"),
+            ChargerInfo("EVcharge - Argentona Centre", "Plaça Nova, Argentona", 41.5542, 2.4045, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Punt Municipal - Vilassar de Mar", "Passeig del Mar, Vilassar de Mar", 41.5032, 2.3891, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
+
+            // --- BARCELONA Y OTROS ENTORNOS ---
+            ChargerInfo("B:SM - Plaça Catalunya", "Plaça Catalunya, Barcelona", 41.3870, 2.1700, true, true, 4, 4, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM", "B:SM Endolla", "cat.bcn.smou"),
+            ChargerInfo("B:SM - Sagrada Família", "C/ Mallorca, Barcelona", 41.4036, 2.1744, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis / B:SM", "B:SM Endolla", "cat.bcn.smou"),
+            ChargerInfo("Punt Recarga Glòries", "Av. Diagonal, Barcelona", 41.4025, 2.1895, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Barcelona", "cat.bcn.smou"),
+            ChargerInfo("EVcharge - Cornellà Centre", "Av. del Parc, Cornellà", 41.3578, 2.0712, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "EVcharge", "com.electromaps.app"),
+            ChargerInfo("Punt Recarga Castelldefels", "Av. de la Platja, Castelldefels", 41.2685, 1.9805, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament", "com.electromaps.app"),
+            ChargerInfo("Punt Recarga Manresa", "Passeig Pere III, Manresa", 41.7265, 1.8260, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Manresa", "com.electromaps.app"),
+            ChargerInfo("Ajuntament de Girona - Devesa", "Passeig de la Devesa, Girona", 41.9852, 2.8185, true, true, 2, 2, AvailabilityStatus.STATIC_CARCASA, "22 kW", "Gratis", "Ajuntament de Girona", "
