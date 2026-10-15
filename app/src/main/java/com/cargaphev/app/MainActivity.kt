@@ -557,44 +557,31 @@ class MainActivity : AppCompatActivity() {
 
     // Diseño detallado del coche con parabrisas, carrocería y luces rojas
     private fun createCustomUserPin(): Drawable {
-        val density = resources.displayMetrics.density
-        val width = (36 * density).toInt()
-        val height = (56 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Carrocería principal blanca con contorno azul
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
-        canvas.drawRoundRect(bodyRect, 8 * density, 8 * density, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.parseColor("#1565C0")
-        paint.strokeWidth = 2f * density
-        canvas.drawRoundRect(bodyRect, 8 * density, 8 * density, paint)
-
-        // Ruedas laterales
-        paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#212121")
-        canvas.drawRoundRect(RectF(2 * density, 16 * density, 6 * density, 24 * density), 2 * density, 2 * density, paint)
-        canvas.drawRoundRect(RectF(30 * density, 16 * density, 34 * density, 24 * density), 2 * density, 2 * density, paint)
-        canvas.drawRoundRect(RectF(2 * density, 36 * density, 6 * density, 44 * density), 2 * density, 2 * density, paint)
-        canvas.drawRoundRect(RectF(30 * density, 36 * density, 34 * density, 44 * density), 2 * density, 2 * density, paint)
-
-        // Parabrisas delantero
-        paint.color = Color.parseColor("#1565C0")
-        val windshieldRect = RectF(10 * density, 12 * density, 26 * density, 22 * density)
-        canvas.drawRoundRect(windshieldRect, 3 * density, 3 * density, paint)
-
-        // Luces traseras rojas
-        paint.color = Color.parseColor("#D32F2F")
-        canvas.drawRect(8 * density, 50 * density, 13 * density, 52 * density, paint)
-        canvas.drawRect(23 * density, 50 * density, 28 * density, 52 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
+       val density = resources.displayMetrics.density
+       val width = (36 * density).toInt()
+       val height = (64 * density).toInt() // Proporción alargada exacta para el C-HR
+    
+       try {
+        // Busca la imagen chr_top.png o chr_top.jpg dentro de res/drawable
+        val resourceId = resources.getIdentifier("chr_top", "drawable", packageName)
+        if (resourceId != 0) {
+            val drawable = ContextCompat.getDrawable(this, resourceId)
+            if (drawable != null) {
+                val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
+                return BitmapDrawable(resources, scaledBitmap)
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
+    
+    // Fallback de seguridad por si faltara la imagen en algún momento
+    val fallbackBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(fallbackBitmap)
+    canvas.drawColor(Color.parseColor("#1565C0"))
+    return BitmapDrawable(resources, fallbackBitmap)
+   }
 
     override fun onResume() { super.onResume(); map.onResume() }
     override fun onPause() { super.onPause(); map.onPause(); locationProvider?.stopLocationProvider() }
