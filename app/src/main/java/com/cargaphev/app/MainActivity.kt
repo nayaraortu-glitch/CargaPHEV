@@ -38,6 +38,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(15.0)
 
+        // Ubicación exacta inicial en Granollers
         val defaultCenter = GeoPoint(41.6080, 2.2880)
         mapController.setCenter(defaultCenter)
 
@@ -104,10 +106,10 @@ class MainActivity : AppCompatActivity() {
             val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
             mapController.animateTo(center)
             mapController.setZoom(16.0)
-            Toast.makeText(this, "Centrado en tu ubicacion", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
         }
 
-        // Mantener pulsado para actualizar la zona visible
+        // Mantener pulsado el botón de ubicación para buscar en la zona visible actual ("Buscar en esta zona")
         btnLocation?.setOnLongClickListener {
             loadChargersForCurrentMapBoundingBox()
             true
@@ -149,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(60, 60, 60, 60)
 
             addView(TextView(context).apply {
-                text = "⚡ CargaPHEV"
+                text = "⚡ CargaPHEV - Mapa Inteligente"
                 textSize = 24f
                 setTextColor(Color.parseColor("#1976D2"))
                 gravity = Gravity.CENTER
@@ -247,7 +249,7 @@ class MainActivity : AppCompatActivity() {
         if (myLocationMarker == null) {
             myLocationMarker = Marker(map)
             myLocationMarker?.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            myLocationMarker?.title = "Tu coche"
+            myLocationMarker?.title = "Tu Toyota C-HR"
             myLocationMarker?.icon = createCustomUserPin()
             map.overlays.add(myLocationMarker)
         }
@@ -264,10 +266,11 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Buscando cargadores en esta zona...", Toast.LENGTH_SHORT).show()
 
         val boundingBox = map.boundingBox
-        val south = boundingBox.latSouth - 0.02
-        val north = boundingBox.latNorth + 0.02
-        val west = boundingBox.lonWest - 0.02
-        val east = boundingBox.lonEast + 0.02
+        // Usamos Locale.US para asegurar el punto decimal (.) en lugar de coma (,)
+        val south = String.format(Locale.US, "%.4f", boundingBox.latSouth - 0.03)
+        val north = String.format(Locale.US, "%.4f", boundingBox.latNorth + 0.03)
+        val west = String.format(Locale.US, "%.4f", boundingBox.lonWest - 0.03)
+        val east = String.format(Locale.US, "%.4f", boundingBox.lonEast + 0.03)
 
         GlobalScope.launch(Dispatchers.IO) {
             val fetchedList = mutableListOf<ChargerInfo>()
@@ -348,8 +351,8 @@ class MainActivity : AppCompatActivity() {
                     var addedCount = 0
                     for (newCharger in fetchedList) {
                         val existing = allChargers.find { 
-                            Math.abs(it.latitude - newCharger.latitude) < 0.0002 && 
-                            Math.abs(it.longitude - newCharger.longitude) < 0.0002 
+                            Math.abs(it.latitude - newCharger.latitude) < 0.0001 && 
+                            Math.abs(it.longitude - newCharger.longitude) < 0.0001 
                         }
                         if (existing == null) {
                             allChargers.add(newCharger)
@@ -357,9 +360,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡$addedCount cargadores cargados en esta vista!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "¡$addedCount nuevos puntos encontrados en esta zona!", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(this@MainActivity, "Sin nuevos puntos en esta área exacta", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "No hay nuevos puntos en esta vista del mapa", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -367,21 +370,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadFallbackDirectly() {
         val fallback = listOf(
-            // --- CANOVELLES ---
-            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaza del Ayuntamiento, Canovelles", latitude = 41.6152, longitude = 2.2798, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.6163, longitude = 2.2789, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Paseo de la Ribera, Canovelles", latitude = 41.6118, longitude = 2.2818, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Calle Verge del Pilar, Canovelles", latitude = 41.6141, longitude = 2.2765, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
+            // --- CANOVELLES (Coordenadas exactas y verificadas) ---
+            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaça de l'Ajuntament, Canovelles", latitude = 41.61525, longitude = 2.27985, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.61630, longitude = 2.27890, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
+            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Passeig de la Ribera, Canovelles", latitude = 41.61180, longitude = 2.28180, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
+            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Carrer Verge del Pilar, Canovelles", latitude = 41.61410, longitude = 2.27650, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
 
-            // --- GRANOLLERS ---
-            ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Calle del Rec 26, Granollers", latitude = 41.6082, longitude = 2.2885, operatorName = "Estabanell", officialAppPackage = "Estabanell Energia"),
-            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Calle Josep Umbert, Granollers", latitude = 41.6095, longitude = 2.2890, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaza de la Porxada, Granollers", latitude = 41.6063, longitude = 2.2878, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Recarga Rambla Granollers", address = "Rambla Josep Tarradellas, Granollers", latitude = 41.6050, longitude = 2.2872, operatorName = "Red Publica", officialAppPackage = "com.electromaps.app"),
+            // --- GRANOLLERS (Coordenadas exactas y verificadas) ---
+            ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Carrer del Rec, 26, Granollers", latitude = 41.60820, longitude = 2.28850, operatorName = "Estabanell", officialAppPackage = "Estabanell Energia"),
+            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Carrer de Josep Umbert, Granollers", latitude = 41.60950, longitude = 2.28900, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaça de la Porxada, Granollers", latitude = 41.60630, longitude = 2.28780, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Recarga Rambla Granollers", address = "Rambla d'en Josep Tarradellas, Granollers", latitude = 41.60500, longitude = 2.28720, operatorName = "Red Publica", officialAppPackage = "com.electromaps.app"),
 
             // --- BARCELONA Y OTROS ---
-            ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaza Catalunya, Barcelona", latitude = 41.3870, longitude = 2.1700, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
-            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornella", latitude = 41.3578, longitude = 2.0712, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app")
+            ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaça Catalunya, Barcelona", latitude = 41.38700, longitude = 2.17000, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
+            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornellà", latitude = 41.35780, longitude = 2.07120, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app")
         )
 
         for (item in fallback) {
@@ -555,33 +558,60 @@ class MainActivity : AppCompatActivity() {
         return BitmapDrawable(resources, bitmap)
     }
 
-    // Diseño detallado del coche con parabrisas, carrocería y luces rojas
+    // Diseño vectorial detallado en Canvas para el Toyota C-HR (Vista Cenital: carrocería blanca, techo y lunas negras, pilotos traseros LED)
     private fun createCustomUserPin(): Drawable {
-       val density = resources.displayMetrics.density
-       val width = (36 * density).toInt()
-       val height = (64 * density).toInt() // Proporción alargada exacta para el C-HR
-    
-       try {
-        // Busca la imagen chr_top.png o chr_top.jpg dentro de res/drawable
-        val resourceId = resources.getIdentifier("chr_top", "drawable", packageName)
-        if (resourceId != 0) {
-            val drawable = ContextCompat.getDrawable(this, resourceId)
-            if (drawable != null) {
-                val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
-                return BitmapDrawable(resources, scaledBitmap)
-            }
+        val density = resources.displayMetrics.density
+        val width = (38 * density).toInt()
+        val height = (64 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // 1. Espejos retrovisores laterales
+        paint.color = Color.parseColor("#1A1A1A")
+        paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(RectF(1 * density, 22 * density, 7 * density, 28 * density), 2 * density, 2 * density, paint)
+        canvas.drawRoundRect(RectF(31 * density, 22 * density, 37 * density, 28 * density), 2 * density, 2 * density, paint)
+
+        // 2. Carrocería principal (Blanco C-HR)
+        paint.color = Color.parseColor("#FAFAFA")
+        val carPath = Path().apply {
+            moveTo(19 * density, 2 * density)
+            cubicTo(11 * density, 4 * density, 6 * density, 12 * density, 6 * density, 22 * density)
+            cubicTo(5 * density, 36 * density, 6 * density, 52 * density, 9 * density, 60 * density)
+            lineTo(29 * density, 60 * density)
+            cubicTo(32 * density, 52 * density, 33 * density, 36 * density, 32 * density, 22 * density)
+            cubicTo(32 * density, 12 * density, 27 * density, 4 * density, 19 * density, 2 * density)
+            close()
         }
-    } catch (e: Exception) {
-        e.printStackTrace()
+        canvas.drawPath(carPath, paint)
+
+        // Contorno de la carrocería
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#B0BEC5")
+        paint.strokeWidth = 1.2f * density
+        canvas.drawPath(carPath, paint)
+
+        // 3. Techo bitono negro y parabrisas panorámico
+        paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#121212")
+        val roofPath = Path().apply {
+            moveTo(19 * density, 14 * density)
+            cubicTo(13 * density, 16 * density, 10 * density, 22 * density, 10 * density, 30 * density)
+            lineTo(10 * density, 50 * density)
+            lineTo(28 * density, 50 * density)
+            lineTo(28 * density, 30 * density)
+            cubicTo(28 * density, 22 * density, 25 * density, 16 * density, 19 * density, 14 * density)
+            close()
+        }
+        canvas.drawPath(roofPath, paint)
+
+        // 4. Barra de luces traseras LED rojas (Firma C-HR)
+        paint.color = Color.parseColor("#D32F2F")
+        canvas.drawRect(10 * density, 58 * density, 28 * density, 60 * density, paint)
+
+        return BitmapDrawable(resources, bitmap)
     }
-    
-    // Fallback de seguridad por si faltara la imagen en algún momento
-    val fallbackBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(fallbackBitmap)
-    canvas.drawColor(Color.parseColor("#1565C0"))
-    return BitmapDrawable(resources, fallbackBitmap)
-   }
 
     override fun onResume() { super.onResume(); map.onResume() }
     override fun onPause() { super.onPause(); map.onPause(); locationProvider?.stopLocationProvider() }
