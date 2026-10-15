@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
@@ -90,8 +91,9 @@ class MainActivity : AppCompatActivity() {
         map.isTilesScaledToDpi = true
 
         val mapController = map.controller
-        mapController.setZoom(14.0)
+        mapController.setZoom(15.0)
 
+        // Centro preciso en Granollers
         val defaultCenter = GeoPoint(41.6080, 2.2880)
         mapController.setCenter(defaultCenter)
 
@@ -102,8 +104,14 @@ class MainActivity : AppCompatActivity() {
         btnLocation?.setOnClickListener {
             val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
             mapController.animateTo(center)
-            mapController.setZoom(15.0)
-            Toast.makeText(this, "Centrado en tu ubicacion", Toast.LENGTH_SHORT).show()
+            mapController.setZoom(16.0)
+            Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
+        }
+
+        // Activación de la búsqueda en la zona mediante pulsación larga
+        btnLocation?.setOnLongClickListener {
+            loadChargersForCurrentMapBoundingBox()
+            true
         }
 
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
@@ -142,7 +150,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(60, 60, 60, 60)
 
             addView(TextView(context).apply {
-                text = "⚡ CargaPHEV - Mapa Inteligente"
+                text = "⚡ CargaPHEV"
                 textSize = 24f
                 setTextColor(Color.parseColor("#1976D2"))
                 gravity = Gravity.CENTER
@@ -150,7 +158,7 @@ class MainActivity : AppCompatActivity() {
             })
 
             addView(TextView(context).apply {
-                text = "Actualiza según la zona visible del mapa y accede a apps oficiales"
+                text = "Mantén pulsado el botón de ubicación para buscar en la pantalla actual"
                 textSize = 14f
                 setTextColor(Color.parseColor("#555555"))
                 gravity = Gravity.CENTER
@@ -158,7 +166,7 @@ class MainActivity : AppCompatActivity() {
             })
 
             addView(TextView(context).apply {
-                text = "\n👉 Toca en cualquier lugar para comenzar"
+                text = "👉 Toca para comenzar"
                 textSize = 14f
                 setTextColor(Color.parseColor("#2E7D32"))
                 gravity = Gravity.CENTER
@@ -220,7 +228,7 @@ class MainActivity : AppCompatActivity() {
                     if (isFirstLocationUpdate) {
                         isFirstLocationUpdate = false
                         map.controller.animateTo(userPoint)
-                        map.controller.setZoom(15.0)
+                        map.controller.setZoom(16.0)
                     }
                 }
             }
@@ -242,9 +250,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChargersForCurrentMapBoundingBox() {
-        if (isRefreshing) return
+        if (isRefreshing) {
+            Toast.makeText(this, "Petición en curso...", Toast.LENGTH_SHORT).show()
+            return
+        }
         isRefreshing = true
-        Toast.makeText(this, "Buscando cargadores en esta zona del mapa...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Buscando en esta área del mapa...", Toast.LENGTH_SHORT).show()
 
         val boundingBox = map.boundingBox
         val south = boundingBox.latSouth
@@ -259,7 +270,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
                         "[out:json][timeout:25];" +
-                        "node[\"amenity\"=\"charging_station\"($south,$west,$north,$east);" +
+                        "node[\"amenity\"=\"charging_station\"]($south,$west,$north,$east);" +
                         "out%20body%20250;"
 
                 connection = URL(apiUrl).openConnection() as HttpURLConnection
@@ -339,9 +350,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡$addedCount cargadores nuevos añadidos en esta zona!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "¡$addedCount puntos nuevos añadidos!", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(this@MainActivity, "No hay nuevos puntos online en esta vista del mapa", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "No se hallaron puntos adicionales en esta vista", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -349,24 +360,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadFallbackDirectly() {
         val fallback = listOf(
-            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaza del Ayuntamiento, Canovelles", latitude = 41.6152, longitude = 2.2798, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.6163, longitude = 2.2789, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Paseo de la Ribera, Canovelles", latitude = 41.6118, longitude = 2.2818, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Calle Verge del Pilar, Canovelles", latitude = 41.6141, longitude = 2.2765, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Ajuntament Canovelles - Calle Rec", address = "Calle del Rec, Canovelles", latitude = 41.6158, longitude = 2.2774, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Calle del Rec 26, Granollers", latitude = 41.6082, longitude = 2.2885, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Calle Josep Umbert, Granollers", latitude = 41.6095, longitude = 2.2890, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaza de la Porxada, Granollers", latitude = 41.6063, longitude = 2.2878, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Recarga Rambla Granollers", address = "Rambla Josep Tarradellas, Granollers", latitude = 41.6050, longitude = 2.2872, operatorName = "Red Publica", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Estabanell - Mollet del Valles", address = "Av. Llibertat, Mollet del Valles", latitude = 41.5398, longitude = 2.2132, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "EVcharge - Sant Cugat Volpelleres", address = "Estacio FGC Volpelleres, Sant Cugat", latitude = 41.4812, longitude = 2.0715, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "Ajuntament Terrassa - Rambla Egara", address = "Rambla Egara, Terrassa", latitude = 41.5621, longitude = 2.0084, operatorName = "Ajuntament de Terrassa", officialAppPackage = "com.electromaps.app"),
-            ChargerInfo(name = "Punt Carga Parc Valles", address = "Av. Textil, Terrassa", latitude = 41.5530, longitude = 2.0315, totalSockets = 4, availableSockets = 4, operatorName = "Parc Valles", officialAppPackage = "com.electromaps.app"),
+            // --- CANOVELLES (Coordenadas ajustadas al mapa exacto) ---
+            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaza del Ayuntamiento, Canovelles", latitude = 41.6180, longitude = 2.2778, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.6190, longitude = 2.2769, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
+            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Paseo de la Ribera, Canovelles", latitude = 41.6148, longitude = 2.2798, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
+            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Calle Verge del Pilar, Canovelles", latitude = 41.6161, longitude = 2.2755, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
+
+            // --- GRANOLLERS (Calle del Rec y Josep Umbert corregidos) ---
+            ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Calle del Rec 26, Granollers", latitude = 41.6080, longitude = 2.2882, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Calle Josep Umbert, Granollers", latitude = 41.6055, longitude = 2.2889, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaza de la Porxada, Granollers", latitude = 41.6073, longitude = 2.2872, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
+            ChargerInfo(name = "Recarga Rambla Granollers", address = "Rambla Josep Tarradellas, Granollers", latitude = 41.6030, longitude = 2.2870, operatorName = "Red Publica", officialAppPackage = "com.electromaps.app"),
+
+            // --- OTROS ENTORNOS ---
             ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaza Catalunya, Barcelona", latitude = 41.3870, longitude = 2.1700, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
-            ChargerInfo(name = "BSM - Sagrada Familia", address = "Calle Mallorca, Barcelona", latitude = 41.4036, longitude = 2.1744, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
-            ChargerInfo(name = "Punt Recarga Glorias", address = "Av. Diagonal, Barcelona", latitude = 41.4025, longitude = 2.1895, operatorName = "Ajuntament de Barcelona", officialAppPackage = "cat.bcn.smoubcn"),
-            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornella", latitude = 41.3578, longitude = 2.0712, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
-            ChargerInfo(name = "Ajuntament Girona - Devesa", address = "Paseo de la Devesa, Girona", latitude = 41.9852, longitude = 2.8185, operatorName = "Ajuntament de Girona", officialAppPackage = "com.electromaps.app")
+            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornella", latitude = 41.3578, longitude = 2.0712, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app")
         )
 
         for (item in fallback) {
@@ -503,6 +511,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Dibujo del pin del cargador con relieve, enchufe y conector superior
     private fun createCustomPinIcon(colorInt: Int): Drawable {
         val density = resources.displayMetrics.density
         val width = (42 * density).toInt()
@@ -510,17 +519,60 @@ class MainActivity : AppCompatActivity() {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
         paint.color = colorInt
-        canvas.drawRoundRect(RectF(8f * density, 6f * density, 28f * density, 44f * density), 4f * density, 4f * density, paint)
+        val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
+        canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
+
+        val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
+        canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2.5f * density
+        val path = Path()
+        path.moveTo(28 * density, 26 * density)
+        path.lineTo(34 * density, 26 * density)
+        path.lineTo(34 * density, 16 * density)
+        canvas.drawPath(path, paint)
+
+        paint.style = Paint.Style.FILL
+        val plugRect = RectF(30 * density, 8 * density, 38 * density, 16 * density)
+        canvas.drawRoundRect(plugRect, 2 * density, 2 * density, paint)
+
+        paint.color = Color.WHITE
+        paint.textSize = 11 * density
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText("E", 18 * density, 21 * density, paint)
+        canvas.drawText("V", 18 * density, 36 * density, paint)
+
         return BitmapDrawable(resources, bitmap)
     }
 
+    // Dibujo del icono del coche del usuario
     private fun createCustomUserPin(): Drawable {
         val density = resources.displayMetrics.density
-        val bitmap = Bitmap.createBitmap((36 * density).toInt(), (56 * density).toInt(), Bitmap.Config.ARGB_8888)
+        val width = (36 * density).toInt()
+        val height = (56 * density).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        canvas.drawRoundRect(RectF(6f * density, 4f * density, 30f * density, 52f * density), 10f * density, 12f * density, paint)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        val bodyRect = RectF(6 * density, 4 * density, 30 * density, 52 * density)
+        canvas.drawRoundRect(bodyRect, 8 * density, 8 * density, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#1565C0")
+        paint.strokeWidth = 2f * density
+        canvas.drawRoundRect(bodyRect, 8 * density, 8 * density, paint)
+
+        paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#1565C0")
+        val windshieldRect = RectF(10 * density, 12 * density, 26 * density, 22 * density)
+        canvas.drawRoundRect(windshieldRect, 3 * density, 3 * density, paint)
+
         return BitmapDrawable(resources, bitmap)
     }
 
