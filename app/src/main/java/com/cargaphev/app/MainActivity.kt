@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
@@ -91,7 +92,6 @@ class MainActivity : AppCompatActivity() {
         val mapController = map.controller
         mapController.setZoom(14.0)
 
-        // Centrado inicial en Granollers / Canovelles
         val defaultCenter = GeoPoint(41.6080, 2.2880)
         mapController.setCenter(defaultCenter)
 
@@ -106,7 +106,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Centrado en tu ubicacion", Toast.LENGTH_SHORT).show()
         }
 
-        // BOTÓN ACTUALIZAR: Lee la zona visible actual del mapa en pantalla ("Buscar en esta zona")
         val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
         if (btnRefreshId != 0) {
             findViewById<View>(btnRefreshId)?.setOnClickListener {
@@ -127,7 +126,6 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(btnNavegarId)?.setOnClickListener { showChargerActionMenu() }
         }
 
-        // Carga inicial local de confianza
         loadFallbackDirectly()
         updateMarkers()
     }
@@ -248,7 +246,6 @@ class MainActivity : AppCompatActivity() {
         isRefreshing = true
         Toast.makeText(this, "Buscando cargadores en esta zona del mapa...", Toast.LENGTH_SHORT).show()
 
-        // Obtenemos los límites exactos (Bounding Box) de la pantalla actual del mapa
         val boundingBox = map.boundingBox
         val south = boundingBox.latSouth
         val north = boundingBox.latNorth
@@ -291,14 +288,13 @@ class MainActivity : AppCompatActivity() {
                                      operatorLower.contains("estabanell") ||
                                      tags.optString("fee", "") == "no"
 
-                        // Gestión inteligente de paquetes o búsqueda directa en tienda
                         val appPackage = when {
                             operatorLower.contains("bcn") || operatorLower.contains("smou") || operatorLower.contains("bsm") -> "cat.bcn.smoubcn"
                             operatorLower.contains("iberdrola") -> "com.iberdrola.recargapublica"
                             operatorLower.contains("endesa") -> "com.enelx.juicypass"
                             operatorLower.contains("wenea") -> "com.wenea.evcharging"
                             operatorLower.contains("evcharge") -> "com.EVcharge.app"
-                            else -> operator // Si es otro operador, guardamos el nombre para buscarlo en Google Play
+                            else -> operator
                         }
 
                         if (lat != 0.0 && lon != 0.0) {
@@ -353,14 +349,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadFallbackDirectly() {
         val fallback = listOf(
-            // --- CANOVELLES ---
             ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaza del Ayuntamiento, Canovelles", latitude = 41.6152, longitude = 2.2798, operatorName = "Ajuntament de Canovelles", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.6163, longitude = 2.2789, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
             ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Paseo de la Ribera, Canovelles", latitude = 41.6118, longitude = 2.2818, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
             ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Calle Verge del Pilar, Canovelles", latitude = 41.6141, longitude = 2.2765, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "Ajuntament Canovelles - Calle Rec", address = "Calle del Rec, Canovelles", latitude = 41.6158, longitude = 2.2774, operatorName = "Ajuntament", officialAppPackage = "com.electromaps.app"),
-
-            // --- GRANOLLERS & VALLES ---
             ChargerInfo(name = "Estabanell - Calle Rec Granollers", address = "Calle del Rec 26, Granollers", latitude = 41.6082, longitude = 2.2885, operatorName = "Estabanell", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Calle Josep Umbert, Granollers", latitude = 41.6095, longitude = 2.2890, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaza de la Porxada, Granollers", latitude = 41.6063, longitude = 2.2878, operatorName = "Ajuntament de Granollers", officialAppPackage = "com.electromaps.app"),
@@ -369,8 +362,6 @@ class MainActivity : AppCompatActivity() {
             ChargerInfo(name = "EVcharge - Sant Cugat Volpelleres", address = "Estacio FGC Volpelleres, Sant Cugat", latitude = 41.4812, longitude = 2.0715, operatorName = "EVcharge", officialAppPackage = "com.EVcharge.app"),
             ChargerInfo(name = "Ajuntament Terrassa - Rambla Egara", address = "Rambla Egara, Terrassa", latitude = 41.5621, longitude = 2.0084, operatorName = "Ajuntament de Terrassa", officialAppPackage = "com.electromaps.app"),
             ChargerInfo(name = "Punt Carga Parc Valles", address = "Av. Textil, Terrassa", latitude = 41.5530, longitude = 2.0315, totalSockets = 4, availableSockets = 4, operatorName = "Parc Valles", officialAppPackage = "com.electromaps.app"),
-
-            // --- BARCELONA Y OTROS ---
             ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaza Catalunya, Barcelona", latitude = 41.3870, longitude = 2.1700, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
             ChargerInfo(name = "BSM - Sagrada Familia", address = "Calle Mallorca, Barcelona", latitude = 41.4036, longitude = 2.1744, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppPackage = "cat.bcn.smoubcn"),
             ChargerInfo(name = "Punt Recarga Glorias", address = "Av. Diagonal, Barcelona", latitude = 41.4025, longitude = 2.1895, operatorName = "Ajuntament de Barcelona", officialAppPackage = "cat.bcn.smoubcn"),
@@ -475,7 +466,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun openOfficialApp(appPkgOrName: String) {
         try {
-            // Si es un nombre de paquete conocido, intentamos abrirlo directamente
             if (appPkgOrName.contains(".")) {
                 val intent = packageManager.getLaunchIntentForPackage(appPkgOrName)
                 if (intent != null) {
@@ -483,7 +473,6 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
             }
-            // Si no está instalada o es un nombre de operador genérico, abrimos Play Store buscando el operador
             val storeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=$appPkgOrName"))
             startActivity(storeIntent)
         } catch (e: Exception) {
