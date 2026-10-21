@@ -1,580 +1,123 @@
 package com.cargaphev.app
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Typeface
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.chip.Chip
-import com.google.android.material.floatingactionbutton.FloatingActionButton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
-
-    private lateinit var map: MapView
-    private val LOCATION_PERMISSION_REQUEST_CODE = 1001
-
-    private val allChargers = mutableListOf<ChargerInfo>()
-    private val activeMarkers = mutableListOf<Marker>()
-    private var selectedCharger: ChargerInfo? = null
-    private var myLocationMarker: Marker? = null
-    private var locationProvider: org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider? = null
-    private var isFirstLocationUpdate = true
-    private var isRefreshing = false
-
-    enum class AvailabilityStatus {
-        ALL_AVAILABLE,
-        PARTIALLY_AVAILABLE,
-        FULLY_OCCUPIED,
-        OUT_OF_SERVICE,
-        STATIC_CARCASA
-    }
-
-    data class ChargerInfo(
-        val name: String,
-        val address: String,
-        val latitude: Double,
-        val longitude: Double,
-        val isFree: Boolean = true,
-        val isType2: Boolean = true,
-        val totalSockets: Int = 2,
-        var availableSockets: Int = 2,
-        var status: AvailabilityStatus = AvailabilityStatus.STATIC_CARCASA,
-        val powerKw: String = "22 kW",
-        val pricePerKwh: String = "Gratis",
-        val operatorName: String = "Red Publica",
-        val officialAppQuery: String = "Electromaps",
-        var isFavorite: Boolean = false
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Configuration.getInstance().userAgentValue = packageName
-        setContentView(R.layout.activity_main)
+        // Comprobar si se abrió por comando de voz o enlace externo
+        handleVoiceOrDeepLinkIntent(intent)
 
-        showWelcomeSplashOverlay()
-
-        map = findViewById(R.id.map)
-        map.setTileSource(TileSourceFactory.MAPNIK)
-        map.setMultiTouchControls(true)
-        map.isTilesScaledToDpi = true
-
-        val mapController = map.controller
-        mapController.setZoom(15.0)
-
-        // Centro exacto en Granollers / Canovelles
-        val defaultCenter = GeoPoint(41.6080, 2.2880)
-        mapController.setCenter(defaultCenter)
-
-        setupCompass()
-        checkLocationPermissions()
-
-        val btnLocation: FloatingActionButton? = findViewById(R.id.btnCenterLocation)
-        btnLocation?.setOnClickListener {
-            val center = myLocationMarker?.position ?: map.mapCenter as? GeoPoint ?: defaultCenter
-            mapController.animateTo(center)
-            mapController.setZoom(16.0)
-            Toast.makeText(this, "Centrado en tu ubicación", Toast.LENGTH_SHORT).show()
-        }
-
-        // Mantener pulsado el botón de ubicación para buscar en la zona visible ("Buscar en esta zona")
-        btnLocation?.setOnLongClickListener {
-            loadChargersForCurrentMapBoundingBox()
-            true
-        }
-
-        val btnRefreshId = resources.getIdentifier("btnRefresh", "id", packageName)
-        if (btnRefreshId != 0) {
-            findViewById<View>(btnRefreshId)?.setOnClickListener {
-                loadChargersForCurrentMapBoundingBox()
-            }
-        }
-
-        val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
-        val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
-        val chipFavoritos: Chip? = findViewById(resources.getIdentifier("chipFavoritos", "id", packageName))
-
-        chipGratuitos?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
-        chipTipo2?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
-        chipFavoritos?.setOnCheckedChangeListener { _, _ -> updateMarkers() }
-
-        val btnNavegarId = resources.getIdentifier("btnNavegar", "id", packageName)
-        if (btnNavegarId != 0) {
-            findViewById<View>(btnNavegarId)?.setOnClickListener { showChargerActionMenu() }
-        }
-
-        loadFallbackDirectly()
-        updateMarkers()
-    }
-
-    private fun showWelcomeSplashOverlay() {
-        val rootLayout = findViewById<View>(android.R.id.content) as? android.view.ViewGroup ?: return
-        
-        val splashView = LinearLayout(this).apply {
+        val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#F5F5F5"))
-            isClickable = true
-            isFocusable = true
             setPadding(60, 60, 60, 60)
 
             addView(TextView(context).apply {
-                text = "⚡ CargaPHEV"
+                text = "⚡ CargaPHEV Voice"
                 textSize = 24f
-                setTextColor(Color.parseColor("#1976D2"))
-                gravity = Gravity.CENTER
-                setTypeface(null, Typeface.BOLD)
+                setPadding(0, 0, 0, 15)
             })
 
             addView(TextView(context).apply {
-                text = "Mantén pulsado el botón de ubicación para buscar cargadores en esta zona"
+                text = "Buscar cargadores GRATUITOS y LIBRES en tiempo real:"
                 textSize = 14f
-                setTextColor(Color.parseColor("#555555"))
                 gravity = Gravity.CENTER
-                setPadding(0, 10, 0, 25)
+                setPadding(0, 0, 0, 40)
             })
 
-            addView(TextView(context).apply {
-                text = "👉 Toca para comenzar"
-                textSize = 14f
-                setTextColor(Color.parseColor("#2E7D32"))
-                gravity = Gravity.CENTER
-                setTypeface(null, Typeface.BOLD)
+            addView(Button(context).apply {
+                text = "🗺️ Google Maps"
+                setOnClickListener { searchRealtimeInGoogleMaps() }
             })
 
-            setOnClickListener {
-                rootLayout.removeView(this)
-            }
+            addView(Button(context).apply {
+                text = "🚗 Waze"
+                setOnClickListener { searchRealtimeInWaze() }
+            })
+
+            addView(Button(context).apply {
+                text = "📡 TomTom"
+                setOnClickListener { searchRealtimeInTomTom() }
+            })
         }
 
-        rootLayout.addView(splashView, android.view.ViewGroup.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-        ))
+        setContentView(layout)
     }
 
-    private fun setupCompass() {
-        try {
-            val rotationGestureOverlay = org.osmdroid.views.overlay.gestures.RotationGestureOverlay(map)
-            rotationGestureOverlay.isEnabled = true
-            map.setMultiTouchControls(true)
-            map.overlays.add(rotationGestureOverlay)
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleVoiceOrDeepLinkIntent(intent)
+    }
 
-            val btnCompass = findViewById<FloatingActionButton>(resources.getIdentifier("btnCompass", "id", packageName))
-            btnCompass?.setOnClickListener {
-                map.controller.animateTo(map.mapCenter)
-                map.setMapOrientation(0f)
-                Toast.makeText(this, "Mapa orientado al Norte", Toast.LENGTH_SHORT).show()
+    private fun handleVoiceOrDeepLinkIntent(intent: Intent?) {
+        if (intent == null) return
+
+        // 1. Obtención del parámetro desde el intent de voz o URI
+        val voiceParam = intent.getStringExtra("navApp")?.lowercase()
+            ?: intent.data?.getQueryParameter("app")?.lowercase()
+
+        when {
+            voiceParam?.contains("waze") == true -> {
+                Toast.makeText(this, "Ejecutando CargaPHEV en Waze...", Toast.LENGTH_SHORT).show()
+                searchRealtimeInWaze()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+            voiceParam?.contains("maps") == true || voiceParam?.contains("google") == true -> {
+                Toast.makeText(this, "Ejecutando CargaPHEV en Google Maps...", Toast.LENGTH_SHORT).show()
+                searchRealtimeInGoogleMaps()
+            }
+            voiceParam?.contains("tom") == true || voiceParam?.contains("tomtom") == true -> {
+                Toast.makeText(this, "Ejecutando CargaPHEV en TomTom...", Toast.LENGTH_SHORT).show()
+                searchRealtimeInTomTom()
+            }
         }
     }
 
-    private fun checkLocationPermissions() {
-        val fineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-        val coarseLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-
-        if (fineLocation != PackageManager.PERMISSION_GRANTED || coarseLocation != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                LOCATION_PERMISSION_REQUEST_CODE
-            )
+    private fun searchRealtimeInGoogleMaps() {
+        val uri = Uri.parse("geo:0,0?q=cargadores+coches+electricos+gratuitos+libres")
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            setPackage("com.google.android.apps.maps")
+        }
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
         } else {
-            startCustomLocationUpdates()
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/cargadores+coches+electricos+gratuitos+libres")))
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startCustomLocationUpdates()
-        }
-    }
-
-    private fun startCustomLocationUpdates() {
+    private fun searchRealtimeInWaze() {
+        val uri = Uri.parse("https://waze.com/ul?q=cargadores%20electricos%20gratis%20disponibles&navigate=yes")
+        val intent = Intent(Intent.ACTION_VIEW, uri)
         try {
-            locationProvider = org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider(this)
-            locationProvider?.startLocationProvider { location, _ ->
-                if (location != null) {
-                    val userPoint = GeoPoint(location.latitude, location.longitude)
-                    updateUserMarker(userPoint)
-
-                    if (isFirstLocationUpdate) {
-                        isFirstLocationUpdate = false
-                        map.controller.animateTo(userPoint)
-                        map.controller.setZoom(16.0)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun updateUserMarker(point: GeoPoint) {
-        if (myLocationMarker == null) {
-            myLocationMarker = Marker(map)
-            myLocationMarker?.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            myLocationMarker?.title = "Tu ubicación"
-            myLocationMarker?.icon = createCleanUserPin()
-            map.overlays.add(myLocationMarker)
-        }
-        myLocationMarker?.position = point
-        map.invalidate()
-    }
-
-    private fun loadChargersForCurrentMapBoundingBox() {
-        if (isRefreshing) {
-            Toast.makeText(this, "Búsqueda en curso...", Toast.LENGTH_SHORT).show()
-            return
-        }
-        isRefreshing = true
-        Toast.makeText(this, "Buscando cargadores en esta zona...", Toast.LENGTH_SHORT).show()
-
-        val boundingBox = map.boundingBox
-        val south = String.format(Locale.US, "%.4f", boundingBox.latSouth - 0.03)
-        val north = String.format(Locale.US, "%.4f", boundingBox.latNorth + 0.03)
-        val west = String.format(Locale.US, "%.4f", boundingBox.lonWest - 0.03)
-        val east = String.format(Locale.US, "%.4f", boundingBox.lonEast + 0.03)
-
-        GlobalScope.launch(Dispatchers.IO) {
-            val fetchedList = mutableListOf<ChargerInfo>()
-            var success = false
-            var connection: HttpURLConnection? = null
-            try {
-                val apiUrl = "https://overpass-api.de/api/interpreter?data=" +
-                        "[out:json][timeout:25];" +
-                        "node[\"amenity\"=\"charging_station\"]($south,$west,$north,$east);" +
-                        "out%20body%20300;"
-
-                connection = URL(apiUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = 15000
-                connection.readTimeout = 15000
-                connection.setRequestProperty("User-Agent", "CargaPHEV-AppSmartphone")
-
-                if (connection.responseCode == 200) {
-                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                    val root = JSONObject(responseText)
-                    val elements = root.optJSONArray("elements") ?: JSONArray()
-
-                    for (i in 0 until elements.length()) {
-                        val node = elements.getJSONObject(i)
-                        val lat = node.optDouble("lat", 0.0)
-                        val lon = node.optDouble("lon", 0.0)
-                        val tags = node.optJSONObject("tags") ?: JSONObject()
-
-                        val name = tags.optString("name", tags.optString("operator", "Punto Recarga"))
-                        val operator = tags.optString("operator", "Red Publica")
-                        val operatorLower = operator.lowercase()
-                        val capacity = tags.optString("capacity", "2").toIntOrNull() ?: 2
-                        
-                        val isFree = operatorLower.contains("ajuntament") || 
-                                     operatorLower.contains("municipal") || 
-                                     operatorLower.contains("estabanell") ||
-                                     tags.optString("fee", "") == "no"
-
-                        val appQuery = when {
-                            operatorLower.contains("bcn") || operatorLower.contains("smou") || operatorLower.contains("bsm") -> "Smou Barcelona"
-                            operatorLower.contains("estabanell") -> "Estabanell Energia"
-                            operatorLower.contains("iberdrola") -> "Iberdrola Recarga Publica"
-                            operatorLower.contains("endesa") -> "Endesa X Way"
-                            operatorLower.contains("wenea") -> "Wenea"
-                            operatorLower.contains("evcharge") -> "EVcharge"
-                            else -> operator
-                        }
-
-                        if (lat != 0.0 && lon != 0.0) {
-                            fetchedList.add(
-                                ChargerInfo(
-                                    name = name,
-                                    address = "Operador: $operator",
-                                    latitude = lat,
-                                    longitude = lon,
-                                    isFree = isFree,
-                                    totalSockets = capacity,
-                                    availableSockets = capacity,
-                                    status = AvailabilityStatus.STATIC_CARCASA,
-                                    powerKw = tags.optString("socket:type2:output", "22 kW"),
-                                    pricePerKwh = if (isFree) "Gratis" else "De pago",
-                                    operatorName = operator,
-                                    officialAppQuery = appQuery
-                                )
-                            )
-                        }
-                    }
-                    if (fetchedList.isNotEmpty()) success = true
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                connection?.disconnect()
-                isRefreshing = false
-            }
-
-            withContext(Dispatchers.Main) {
-                if (success && fetchedList.isNotEmpty()) {
-                    var addedCount = 0
-                    for (newCharger in fetchedList) {
-                        val existing = allChargers.find { 
-                            Math.abs(it.latitude - newCharger.latitude) < 0.0001 && 
-                            Math.abs(it.longitude - newCharger.longitude) < 0.0001 
-                        }
-                        if (existing == null) {
-                            allChargers.add(newCharger)
-                            addedCount++
-                        }
-                    }
-                    updateMarkers()
-                    Toast.makeText(this@MainActivity, "¡$addedCount puntos nuevos añadidos en esta zona!", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(this@MainActivity, "No hay nuevos puntos en esta vista del mapa", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private fun loadFallbackDirectly() {
-        val fallback = listOf(
-            // --- CANOVELLES (Coordenadas exactas y verificadas sobre callejero) ---
-            ChargerInfo(name = "Ajuntament Canovelles - Plaza", address = "Plaça de l'Ajuntament, 1, Canovelles", latitude = 41.61721, longitude = 2.28002, operatorName = "Ajuntament de Canovelles", officialAppQuery = "Electromaps"),
-            ChargerInfo(name = "EVcharge - Carretera Ribes", address = "Ctra. de Ribes, Canovelles", latitude = 41.61630, longitude = 2.27890, operatorName = "EVcharge", officialAppQuery = "EVcharge"),
-            ChargerInfo(name = "EVcharge - Pabellon Canovelles", address = "Passeig de la Ribera, Canovelles", latitude = 41.61180, longitude = 2.28180, operatorName = "EVcharge", officialAppQuery = "EVcharge"),
-            ChargerInfo(name = "Punt Municipal - Calle Pilar", address = "Carrer Verge del Pilar, Canovelles", latitude = 41.61410, longitude = 2.27650, operatorName = "Ajuntament", officialAppQuery = "Electromaps"),
-
-            // --- GRANOLLERS (Coordenadas exactas y verificadas sobre callejero) ---
-            ChargerInfo(name = "Estabanell - Carrer del Rec", address = "Carrer del Rec, 26, Granollers", latitude = 41.60820, longitude = 2.28850, operatorName = "Estabanell", officialAppQuery = "Estabanell Energia"),
-            ChargerInfo(name = "Punt Municipal - Josep Umbert", address = "Carrer de Josep Umbert, Granollers", latitude = 41.60950, longitude = 2.28900, operatorName = "Ajuntament de Granollers", officialAppQuery = "Electromaps"),
-            ChargerInfo(name = "Estacio Publica - Porxada", address = "Plaça de la Porxada, Granollers", latitude = 41.60630, longitude = 2.28780, operatorName = "Ajuntament de Granollers", officialAppQuery = "Electromaps"),
-            ChargerInfo(name = "Recarga Camp de les Moreres", address = "Carrer del Camp de les Moreres, Granollers", latitude = 41.60060, longitude = 2.28800, operatorName = "Ajuntament de Granollers", officialAppQuery = "Electromaps"),
-
-            // --- BARCELONA Y OTROS ---
-            ChargerInfo(name = "BSM - Plaza Catalunya", address = "Plaça Catalunya, Barcelona", latitude = 41.38700, longitude = 2.17000, totalSockets = 4, availableSockets = 4, pricePerKwh = "Gratis / BSM", operatorName = "BSM Endolla", officialAppQuery = "Smou Barcelona"),
-            ChargerInfo(name = "EVcharge - Cornella Centre", address = "Av. del Parc, Cornellà", latitude = 41.35780, longitude = 2.07120, operatorName = "EVcharge", officialAppQuery = "EVcharge")
-        )
-
-        for (item in fallback) {
-            if (!allChargers.any { Math.abs(it.latitude - item.latitude) < 0.0001 && Math.abs(it.longitude - item.longitude) < 0.0001 }) {
-                allChargers.add(item)
-            }
-        }
-    }
-
-    private fun updateMarkers() {
-        val chipGratuitos: Chip? = findViewById(R.id.chipGratuitos)
-        val chipTipo2: Chip? = findViewById(R.id.chipTipo2)
-        val chipFavoritos: Chip? = findViewById(resources.getIdentifier("chipFavoritos", "id", packageName))
-
-        val onlyFree = chipGratuitos?.isChecked ?: false
-        val onlyType2 = chipTipo2?.isChecked ?: false
-        val onlyFavorites = chipFavoritos?.isChecked ?: false
-
-        for (marker in activeMarkers) {
-            map.overlays.remove(marker)
-        }
-        activeMarkers.clear()
-
-        val bottomSheet: View? = findViewById(R.id.bottomSheet)
-        val tvNombre: TextView? = findViewById(R.id.tvNombreEstacion)
-        val tvDireccion: TextView? = findViewById(R.id.tvDireccion)
-
-        for (charger in allChargers) {
-            if (onlyFree && !charger.isFree) continue
-            if (onlyType2 && !charger.isType2) continue
-            if (onlyFavorites && !charger.isFavorite) continue
-
-            val marker = Marker(map)
-            marker.position = GeoPoint(charger.latitude, charger.longitude)
-            marker.title = charger.name
-
-            val markerColor = when (charger.status) {
-                AvailabilityStatus.ALL_AVAILABLE -> Color.parseColor("#2E7D32")
-                AvailabilityStatus.PARTIALLY_AVAILABLE -> Color.parseColor("#FFB300")
-                AvailabilityStatus.FULLY_OCCUPIED -> Color.parseColor("#D32F2F")
-                AvailabilityStatus.OUT_OF_SERVICE -> Color.parseColor("#212121")
-                AvailabilityStatus.STATIC_CARCASA -> Color.parseColor("#1565C0")
-            }
-
-            marker.icon = createCustomPinIcon(markerColor)
-            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-
-            marker.setOnMarkerClickListener { m, _ ->
-                selectedCharger = charger
-
-                val favIcon = if (charger.isFavorite) "⭐ [Favorito]" else "☆ [Añadir a Favoritos]"
-                tvNombre?.text = "${charger.name} ${if (charger.isFavorite) "⭐" else ""}"
-                tvDireccion?.text = "Operador: ${charger.operatorName}\n${charger.address}\nPunto Oficial (Ver en App)\n${charger.pricePerKwh} - ${charger.powerKw}\n\n$favIcon"
-
-                if (bottomSheet != null) {
-                    val behavior = BottomSheetBehavior.from(bottomSheet)
-                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                }
-                m.showInfoWindow()
-                true
-            }
-
-            map.overlays.add(marker)
-            activeMarkers.add(marker)
-        }
-        map.invalidate()
-    }
-
-    private fun showChargerActionMenu() {
-        val charger = selectedCharger
-        if (charger == null) {
-            Toast.makeText(this, "Selecciona un cargador primero", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val favText = if (charger.isFavorite) "Quitar de Favoritos" else "Añadir a Favoritos"
-        val options = arrayOf("Navegar con Google Maps", "Navegar con Waze", "Abrir App Oficial", favText)
-        
-        val builder = android.app.AlertDialog.Builder(this)
-        builder.setTitle(charger.name)
-        builder.setItems(options) { _, which ->
-            when (which) {
-                0 -> openGoogleMapsNavigation(charger)
-                1 -> openWazeNavigation(charger)
-                2 -> openOfficialApp(charger.officialAppQuery)
-                3 -> toggleFavorite(charger)
-            }
-        }
-        builder.show()
-    }
-
-    private fun toggleFavorite(charger: ChargerInfo) {
-        charger.isFavorite = !charger.isFavorite
-        Toast.makeText(this, if (charger.isFavorite) "Añadido a favoritos" else "Eliminado", Toast.LENGTH_SHORT).show()
-        updateMarkers()
-    }
-
-    // Redirección directa a la Play Store web para buscar exactamente la app del operador sin interferencias de otras apps
-    private fun openOfficialApp(searchQuery: String) {
-        try {
-            val encodedQuery = Uri.encode(searchQuery)
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=$encodedQuery&c=apps"))
-            startActivity(webIntent)
-        } catch (e: Exception) {
-            Toast.makeText(this, "No se pudo abrir la tienda de aplicaciones", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun openGoogleMapsNavigation(charger: ChargerInfo) {
-        val gmmIntentUri = Uri.parse("google.navigation:q=${charger.latitude},${charger.longitude}")
-        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-        mapIntent.setPackage("com.google.android.apps.maps")
-        if (mapIntent.resolveActivity(packageManager) != null) {
-            startActivity(mapIntent)
-        } else {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}")))
-        }
-    }
-
-    private fun openWazeNavigation(charger: ChargerInfo) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=${charger.latitude},${charger.longitude}&navigate=yes")))
+            startActivity(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "Waze no está instalado", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun createCustomPinIcon(colorInt: Int): Drawable {
-        val density = resources.displayMetrics.density
-        val width = (42 * density).toInt()
-        val height = (50 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        paint.color = colorInt
-        val baseRect = RectF(6 * density, 44 * density, 36 * density, 48 * density)
-        canvas.drawRoundRect(baseRect, 2 * density, 2 * density, paint)
-
-        val bodyRect = RectF(8 * density, 6 * density, 28 * density, 44 * density)
-        canvas.drawRoundRect(bodyRect, 4 * density, 4 * density, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2.5f * density
-        val path = Path()
-        path.moveTo(28 * density, 26 * density)
-        path.lineTo(34 * density, 26 * density)
-        path.lineTo(34 * density, 16 * density)
-        canvas.drawPath(path, paint)
-
-        paint.style = Paint.Style.FILL
-        val plugRect = RectF(30 * density, 8 * density, 38 * density, 16 * density)
-        canvas.drawRoundRect(plugRect, 2 * density, 2 * density, paint)
-
-        paint.color = Color.WHITE
-        paint.textSize = 11 * density
-        paint.typeface = Typeface.DEFAULT_BOLD
-        paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("E", 18 * density, 21 * density, paint)
-        canvas.drawText("V", 18 * density, 36 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
+    private fun searchRealtimeInTomTom() {
+        val uri = Uri.parse("geo:0,0?q=puntos+recarga+gratis+disponibles")
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            setPackage("com.tomtom.speedcams.android.map")
+        }
+        try {
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+            } else {
+                startActivity(Intent(Intent.ACTION_VIEW, uri))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "TomTom no está instalado", Toast.LENGTH_SHORT).show()
+        }
     }
-
-    // Marcador de usuario limpio, profesional y elegante tipo flecha/pin de navegación
-    private fun createCleanUserPin(): Drawable {
-        val density = resources.displayMetrics.density
-        val width = (36 * density).toInt()
-        val height = (46 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        // Círculo base blanco con borde azul
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(18 * density, 18 * density, 14 * density, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.parseColor("#1565C0")
-        paint.strokeWidth = 3f * density
-        canvas.drawCircle(18 * density, 18 * density, 14 * density, paint)
-
-        // Círculo central azul (Ubicación)
-        paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#1976D2")
-        canvas.drawCircle(18 * density, 18 * density, 8 * density, paint)
-
-        return BitmapDrawable(resources, bitmap)
-    }
-
-    override fun onResume() { super.onResume(); map.onResume() }
-    override fun onPause() { super.onPause(); map.onPause(); locationProvider?.stopLocationProvider() }
 }
